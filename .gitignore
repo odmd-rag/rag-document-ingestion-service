@@ -1,0 +1,58 @@
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Dependencies
+node_modules/
+.npm
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# CDK
+cdk.out/
+.cdk.staging
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.nyc_output
+
+# Temporary folders
+tmp/
+temp/
+
+# Package files
+*.tgz
+*.tar.gz
+
+# AWS
+.aws/ 
