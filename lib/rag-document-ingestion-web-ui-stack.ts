@@ -54,7 +54,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
                 apiEndpoint: this.mainStack.httpApi.url,
             },
             google: {
-                clientId: 'REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID', // Placeholder - needs manual configuration
+                clientId: clientId, // Using Google Client ID from auth service contracts
             },
             cognito: {
                 userPoolId: clientId, // This is the client ID from user-auth service contracts
@@ -103,40 +103,44 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 - **API Endpoint**: ${this.mainStack.httpApi.url}
 - **Identity Pool ID**: ${this.authStack.identityPool.ref}
 - **Region**: ${this.region}
+- **Google Client ID**: ${clientId} (from auth service contracts)
+- **Auth Provider**: ${providerName}
 - **Deployment Time**: ${now}
 
-## Required Manual Configuration
+## Configuration Status
 
-### Google OAuth Setup
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create OAuth 2.0 credentials
-3. Add the following to authorized origins:
-   - https://${this.webDomain}
-   - http://localhost:5173 (for development)
-4. Update the config.json file with your Google Client ID:
+✅ **Automatic Configuration Completed**
+- Google OAuth Client ID automatically retrieved from user-auth service contracts
+- Cognito Identity Pool configured with group-based access control
+- API Gateway IAM authentication configured
+- All authentication components wired through OndemandEnv shared values
 
-\`\`\`bash
-aws s3 cp s3://${this.targetBucket.bucketName}/config.json ./config.json
-# Edit config.json to replace REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID
-aws s3 cp ./config.json s3://${this.targetBucket.bucketName}/config.json --cache-control "no-cache, no-store, must-revalidate"
-\`\`\`
+## User Access Configuration
 
-### User Group Configuration
-Users must be added to the "odmd-rag-uploader" group in Cognito to upload documents.
+### User Group Membership
+Users must be added to the **"odmd-rag-uploader"** group in Cognito to upload documents.
 
 ### Testing
 1. Visit: https://${this.webDomain}
-2. Sign in with Google
+2. Sign in with Google (via user-auth service)
 3. Upload a test document
 4. Monitor status in the UI
 
 ## Troubleshooting
 
 If uploads fail:
-1. Check that the user is in the "odmd-rag-uploader" group
-2. Verify Google OAuth client configuration
-3. Check browser console for errors
-4. Verify API Gateway CORS configuration
+1. **Check Group Membership**: Verify the user is in the "odmd-rag-uploader" group
+2. **Check Auth Service**: Ensure the user-auth service is deployed and accessible
+3. **Check Browser Console**: Look for authentication or API errors
+4. **Verify CORS**: Check API Gateway CORS configuration for your domain
+
+## Architecture
+
+This web UI integrates with the RAG system through:
+- **Authentication**: User-auth service via OndemandEnv contracts
+- **File Upload**: Direct to S3 via pre-signed URLs from this service
+- **Document Processing**: Automated pipeline through EventBridge
+- **Access Control**: Cognito Identity Pool with IAM role mapping
 `;
 
         const readmeParams = {
@@ -170,9 +174,9 @@ If uploads fail:
             description: 'URL of the deployed web UI',
         });
 
-        new cdk.CfnOutput(this, 'ConfigInstructions', {
-            value: `Update Google Client ID in s3://${this.targetBucket.bucketName}/config.json`,
-            description: 'Manual configuration required',
+        new cdk.CfnOutput(this, 'ConfigStatus', {
+            value: `✅ Fully configured via OndemandEnv contracts - Google Client ID: ${clientId}`,
+            description: 'Configuration automatically completed',
         });
     }
 } 
