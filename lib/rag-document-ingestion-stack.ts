@@ -1,19 +1,19 @@
 import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
+import {Construct} from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3Notifications from 'aws-cdk-lib/aws-s3-notifications';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import { HttpIamAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
-import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
-import { RagDocumentIngestionEnver } from '@odmd-rag/contracts-lib-rag';
-import {RagDocumentIngestionAuthStack} from "./rag-document-ingestion-auth-stack";
+import {HttpIamAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
+import {NodejsFunction} from 'aws-cdk-lib/aws-lambda-nodejs';
+import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
 
 export class RagDocumentIngestionStack extends cdk.Stack {
+    readonly httpApi: apigatewayv2.HttpApi;
 
-    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps, authStack: RagDocumentIngestionAuthStack) {
+    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps) {
         const id = myEnver.getRevStackNames()[0];
         super(scope, id, props);
 
@@ -100,7 +100,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         quarantineBucket.grantRead(statusHandler);
 
         // HTTP API Gateway with IAM authorization
-        const httpApi = new apigatewayv2.HttpApi(this, 'DocumentIngestionApi', {
+        this.httpApi = new apigatewayv2.HttpApi(this, 'DocumentIngestionApi', {
             apiName: 'RAG Document Ingestion Service',
             description: 'HTTP API for RAG document ingestion operations with IAM authentication',
             corsPreflight: {
@@ -113,14 +113,14 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // API endpoints with IAM authentication using HttpIamAuthorizer
         const iamAuthorizer = new HttpIamAuthorizer();
 
-        httpApi.addRoutes({
+        this.httpApi.addRoutes({
             path: '/upload',
             methods: [apigatewayv2.HttpMethod.POST],
             integration: new apigatewayv2Integrations.HttpLambdaIntegration('UploadIntegration', uploadUrlHandler),
             authorizer: iamAuthorizer,
         });
 
-        httpApi.addRoutes({
+        this.httpApi.addRoutes({
             path: '/status/{documentId}',
             methods: [apigatewayv2.HttpMethod.GET],
             integration: new apigatewayv2Integrations.HttpLambdaIntegration('StatusIntegration', statusHandler),
@@ -139,8 +139,14 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         });
 
         new cdk.CfnOutput(this, 'ApiEndpoint', {
-            value: httpApi.url!,
+            value: this.httpApi.url!,
             exportName: `${this.stackName}-ApiEndpoint`,
+        });
+
+        new cdk.CfnOutput(this, 'ApiGatewayArn', {
+            value: `arn:aws:execute-api:${this.region}:${this.account}:${this.httpApi.httpApiId}/*`,
+            exportName: `${this.stackName}-ApiGatewayArn`,
+            description: 'ARN pattern for the RAG Document Ingestion API Gateway',
         });
 
         new cdk.CfnOutput(this, 'EventBusArn', {
@@ -148,9 +154,5 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             exportName: `${this.stackName}-EventBus`,
         });
 
-        new cdk.CfnOutput(this, 'authUpldrolearn', {
-            value: authStack.uploadRole.roleArn,
-            exportName: `authStack-uploadRole-ApiAccessPolicy`,
-        });
     }
 } 

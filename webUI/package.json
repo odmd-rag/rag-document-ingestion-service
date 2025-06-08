@@ -1,0 +1,27 @@
+{
+  "name": "webui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5"
+  },
+  "dependencies": {
+    "@aws-crypto/sha256-browser": "^5.2.0",
+    "@aws-sdk/client-cognito-identity": "^3.826.0",
+    "@aws-sdk/client-s3": "^3.826.0",
+    "@aws-sdk/credential-providers": "^3.826.0",
+    "@aws-sdk/protocol-http": "^3.374.0",
+    "@aws-sdk/signature-v4": "^3.374.0",
+    "@aws-sdk/signature-v4-multi-region": "^3.826.0",
+    "@aws-sdk/util-uri-escape": "^3.374.0",
+    "@aws-sdk/util-utf8-browser": "^3.259.0",
+    "aws-sdk": "^2.1692.0"
+  }
+}
