@@ -1,5 +1,5 @@
-import { AuthService } from './auth';
-import { getConfig } from './config';
+import type { AwsCredentialIdentity } from '@aws-sdk/types';
+import { getConfig } from './config.js';
 import { HttpRequest } from '@aws-sdk/protocol-http';
 import { SignatureV4 } from '@aws-sdk/signature-v4';
 import { Sha256 } from '@aws-crypto/sha256-browser';
@@ -12,26 +12,21 @@ export interface UploadResponse {
 
 export interface DocumentStatus {
   documentId: string;
-  status: 'uploaded' | 'processing' | 'validated' | 'quarantined' | 'failed';
+  status: 'uploaded' | 'processing' | 'validated' | 'quarantined' | 'failed' | 'completed';
   message?: string;
   timestamp: string;
 }
 
 export class DocumentService {
-  private authService: AuthService;
+  private credentials: AwsCredentialIdentity | null = null;
 
-  constructor(authService: AuthService) {
-    this.authService = authService;
+  async initialize(credentials: AwsCredentialIdentity): Promise<void> {
+    this.credentials = credentials;
   }
 
   async requestUploadUrl(fileName: string, fileType: string): Promise<UploadResponse> {
-    if (!this.authService.isAuthenticated()) {
-      throw new Error('User must be authenticated to upload documents');
-    }
-
-    const credentials = this.authService.getCredentials();
-    if (!credentials) {
-      throw new Error('No valid credentials available');
+    if (!this.credentials) {
+      throw new Error('DocumentService not initialized with credentials');
     }
 
     try {
@@ -44,7 +39,7 @@ export class DocumentService {
           fileName,
           fileType,
         }),
-      }, credentials);
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to get upload URL: ${response.statusText}`);
@@ -57,10 +52,13 @@ export class DocumentService {
     }
   }
 
-  async uploadDocument(file: File): Promise<string> {
+  async uploadDocument(file: File, progressCallback?: (progress: number) => void): Promise<string> {
     try {
+      progressCallback?.(10);
+
       // Step 1: Request upload URL
       const uploadResponse = await this.requestUploadUrl(file.name, file.type);
+      progressCallback?.(20);
 
       // Step 2: Upload directly to S3 using presigned URL
       const formData = new FormData();
@@ -72,16 +70,41 @@ export class DocumentService {
       
       // Add the file (must be last)
       formData.append('file', file);
+      progressCallback?.(30);
 
-      const uploadResult = await fetch(uploadResponse.uploadUrl, {
-        method: 'POST',
-        body: formData,
+      // Use XMLHttpRequest for progress tracking
+      const uploadResult = await new Promise<Response>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            // Progress from 30% to 90% during upload
+            const uploadProgress = 30 + (event.loaded / event.total) * 60;
+            progressCallback?.(Math.round(uploadProgress));
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(new Response(xhr.response, { status: xhr.status, statusText: xhr.statusText }));
+          } else {
+            reject(new Error(`Upload failed: ${xhr.statusText}`));
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          reject(new Error('Upload failed due to network error'));
+        });
+
+        xhr.open('POST', uploadResponse.uploadUrl);
+        xhr.send(formData);
       });
 
       if (!uploadResult.ok) {
         throw new Error(`Upload failed: ${uploadResult.statusText}`);
       }
 
+      progressCallback?.(95);
       return uploadResponse.documentId;
     } catch (error) {
       console.error('Error uploading document:', error);
@@ -89,20 +112,15 @@ export class DocumentService {
     }
   }
 
-  async getDocumentStatus(documentId: string): Promise<DocumentStatus> {
-    if (!this.authService.isAuthenticated()) {
-      throw new Error('User must be authenticated to check document status');
-    }
-
-    const credentials = this.authService.getCredentials();
-    if (!credentials) {
-      throw new Error('No valid credentials available');
+  async getUploadStatus(documentId: string): Promise<DocumentStatus> {
+    if (!this.credentials) {
+      throw new Error('DocumentService not initialized with credentials');
     }
 
     try {
       const response = await this.authenticatedFetch(`/status/${documentId}`, {
         method: 'GET',
-      }, credentials);
+      });
 
       if (!response.ok) {
         throw new Error(`Failed to get document status: ${response.statusText}`);
@@ -117,9 +135,12 @@ export class DocumentService {
 
   private async authenticatedFetch(
     path: string,
-    options: RequestInit,
-    credentials: any
+    options: RequestInit
   ): Promise<Response> {
+    if (!this.credentials) {
+      throw new Error('DocumentService not initialized with credentials');
+    }
+
     const config = getConfig();
     const url = new URL(`${config.aws.apiEndpoint.replace(/\/$/, '')}${path}`);
     
@@ -141,9 +162,9 @@ export class DocumentService {
     // Sign the request using AWS Signature V4
     const signer = new SignatureV4({
       credentials: {
-        accessKeyId: credentials.accessKeyId,
-        secretAccessKey: credentials.secretAccessKey,
-        sessionToken: credentials.sessionToken,
+        accessKeyId: this.credentials.accessKeyId,
+        secretAccessKey: this.credentials.secretAccessKey,
+        sessionToken: this.credentials.sessionToken,
       },
       region: config.aws.region,
       service: 'execute-api',

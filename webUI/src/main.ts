@@ -1,5 +1,4 @@
 import './style.css'
-import { App } from './app'
+import './app.js'
 
-// Initialize the application
-new App();
+// The app.js file handles initialization via DOMContentLoaded event listener

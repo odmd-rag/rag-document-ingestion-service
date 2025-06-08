@@ -57,8 +57,8 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
                 clientId: 'REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID', // Placeholder - needs manual configuration
             },
             cognito: {
-                userPoolId: clientId, // This comes from the auth service contracts
-                providerName: providerName,
+                userPoolId: clientId, // This is the client ID from user-auth service contracts
+                providerName: providerName, // This is the provider name like "cognito-idp.region.amazonaws.com/userPoolId"
             },
             deployment: {
                 timestamp: now,
