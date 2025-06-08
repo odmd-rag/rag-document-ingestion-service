@@ -70,7 +70,9 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
         // Attach role to identity pool with group-based role mapping
         new cognito.CfnIdentityPoolRoleAttachment(this, 'IdentityPoolRoleAttachment', {
             identityPoolId: this.identityPool.ref,
-            roleMappings: {
+            roles:{
+            },
+            roleMappings: JSON.parse(JSON.stringify({
                 userPoolId: {
                     type: 'Rules',
                     ambiguousRoleResolution: 'Deny',
@@ -86,7 +88,7 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
                         ]
                     }
                 }
-            }
+            }))
         });
 
         // Create a managed policy that can be attached to users/roles for API access via Cognito Identity Pool
