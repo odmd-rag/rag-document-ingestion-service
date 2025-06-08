@@ -10,7 +10,7 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
     public readonly apiAccessPolicy: iam.ManagedPolicy;
 
     constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps) {
-        const id = myEnver.getRevStackNames()[0] + '-auth'; // Use second stack name for auth
+        const id = myEnver.getRevStackNames()[1]
         super(scope, id, props);
 
         // Import the API Gateway ARN from the main stack

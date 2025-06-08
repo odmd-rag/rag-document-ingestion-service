@@ -13,6 +13,7 @@ import {
 } from "aws-cdk-lib/aws-cloudfront";
 import {S3BucketOrigin} from "aws-cdk-lib/aws-cloudfront-origins";
 import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
+import {Stack} from "aws-cdk-lib";
 
 export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
 
@@ -20,8 +21,8 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
     readonly webSubFQDN: string;
 
     constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps) {
-        const id = myEnver.getRevStackNames()[0] + '-webHosting'; // Use third stack name for web hosting
-        super(scope, id, props);
+        const id = myEnver.getRevStackNames()[2]
+        super(scope, id, {...props, crossRegionReferences: props.env!.region != 'us-east-1'});
 
         this.bucket = new Bucket(this, 'webUiBucket', {
             bucketName: `rag-webui-${this.account}-${this.region}`,
@@ -41,68 +42,67 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
             zoneName,
         });
 
-        if (this.region === 'us-east-1') {
-            this.bucket.grantRead(new ServicePrincipal('cloudfront.amazonaws.com'));
+        this.bucket.grantRead(new ServicePrincipal('cloudfront.amazonaws.com'));
 
-            const webSubdomain = 'rag-docs';
-            this.webSubFQDN = webSubdomain + '.' + zoneName;
+        const webSubdomain = 'rag-docs';
+        this.webSubFQDN = webSubdomain + '.' + zoneName;
 
-            const origin = S3BucketOrigin.withOriginAccessControl(this.bucket);
-            const additionalBehaviors = this.createAssetBehaviors(origin);
+        const origin = S3BucketOrigin.withOriginAccessControl(this.bucket);
+        const additionalBehaviors = this.createAssetBehaviors(origin);
 
-            const noCaching = {
+        const noCaching = {
+            origin: origin,
+            viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+            compress: true,
+            cachePolicy: new CachePolicy(this, 'HtmlCachePolicy', {
+                minTtl: cdk.Duration.seconds(0),
+                maxTtl: cdk.Duration.minutes(1),
+                defaultTtl: cdk.Duration.seconds(10),
+            })
+        };
+
+        let certStack = this.region == 'us-east-1' ? this : new Stack(this, 'certStack', {
+            crossRegionReferences: true,
+            env: {region: 'us-east-1', account: this.account}
+        })
+        const distribution = new Distribution(this, 'Distribution', {
+            defaultBehavior: {
                 origin: origin,
                 viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-                compress: true,
-                cachePolicy: new CachePolicy(this, 'HtmlCachePolicy', {
-                    minTtl: cdk.Duration.seconds(0),
-                    maxTtl: cdk.Duration.minutes(1),
-                    defaultTtl: cdk.Duration.seconds(10),
-                })
-            };
-
-            const distribution = new Distribution(this, 'Distribution', {
-                defaultBehavior: {
-                    origin: origin,
-                    viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-                    compress: true
+                compress: true
+            },
+            additionalBehaviors: {
+                ...additionalBehaviors,
+                '/index.html*': noCaching,
+                '/config*': noCaching
+            },
+            domainNames: [this.webSubFQDN],
+            certificate: new Certificate(certStack, 'web-Certificate', {
+                domainName: this.webSubFQDN,
+                validation: CertificateValidation.fromDns(hostedZone)
+            }),
+            defaultRootObject: 'index.html',
+            errorResponses: [
+                {
+                    httpStatus: 404,
+                    responseHttpStatus: 200,
+                    responsePagePath: '/index.html',
                 },
-                additionalBehaviors: {
-                    ...additionalBehaviors,
-                    '/index.html*': noCaching,
-                    '/config*': noCaching
-                },
-                domainNames: [this.webSubFQDN],
-                certificate: new Certificate(this, 'web-Certificate', {
-                    domainName: this.webSubFQDN,
-                    validation: CertificateValidation.fromDns(hostedZone)
-                }),
-                defaultRootObject: 'index.html',
-                errorResponses: [
-                    {
-                        httpStatus: 404,
-                        responseHttpStatus: 200,
-                        responsePagePath: '/index.html',
-                    },
-                    {
-                        httpStatus: 403,
-                        responseHttpStatus: 200,
-                        responsePagePath: '/index.html',
-                    }
-                ]
-            });
+                {
+                    httpStatus: 403,
+                    responseHttpStatus: 200,
+                    responsePagePath: '/index.html',
+                }
+            ]
+        });
 
-            new ARecord(this, 'WebsiteAliasRecord', {
-                zone: hostedZone,
-                target: RecordTarget.fromAlias(
-                    new CloudFrontTarget(distribution)
-                ),
-                recordName: webSubdomain
-            });
-        } else {
-            console.warn(`IGNORING cloudfront because this region ${this.region} does not support CloudFront certificates`);
-        }
-
+        new ARecord(this, 'WebsiteAliasRecord', {
+            zone: hostedZone,
+            target: RecordTarget.fromAlias(
+                new CloudFrontTarget(distribution)
+            ),
+            recordName: webSubdomain
+        });
         // Output values for other stacks to consume
         new cdk.CfnOutput(this, 'WebUiBucketName', {
             value: this.bucket.bucketName,

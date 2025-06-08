@@ -21,7 +21,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
         authStack: RagDocumentIngestionAuthStack;
         mainStack: RagDocumentIngestionStack;
     }) {
-        const id = myEnver.getRevStackNames()[0] + '-webUi'
+        const id = myEnver.getRevStackNames()[3]
         super(scope, id, props);
 
         this.targetBucket = props.bucket;
