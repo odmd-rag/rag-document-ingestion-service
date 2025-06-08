@@ -24,7 +24,7 @@ const ALLOWED_MIME_TYPES = [
     'application/rtf'
 ];
 
-export async function handler(event: S3Event, context: Context): Promise<void> {
+export async function handler(event: S3Event, _context: Context): Promise<void> {
     console.log('Validation handler invoked:', JSON.stringify(event, null, 2));
 
     for (const record of event.Records) {
@@ -98,13 +98,18 @@ async function validateDocument(bucket: string, key: string, size: number): Prom
             };
         }
 
+        const metadata: ValidationResult['metadata'] = {
+            mimeType,
+            contentLength: size,
+        };
+        
+        if (response.LastModified) {
+            metadata.lastModified = response.LastModified;
+        }
+
         return {
             isValid: true,
-            metadata: {
-                mimeType,
-                contentLength: size,
-                lastModified: response.LastModified
-            }
+            metadata
         };
     } catch (error) {
         throw new Error(`Failed to retrieve document metadata: ${error instanceof Error ? error.message : 'Unknown error'}`);

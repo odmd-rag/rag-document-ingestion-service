@@ -1,9 +1,9 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { S3Client, HeadObjectCommand, GetObjectTaggingCommand } from '@aws-sdk/client-s3';
-import { CognitoIdentityClient, GetIdCommand, GetCredentialsForIdentityCommand } from '@aws-sdk/client-cognito-identity';
+import { CognitoIdentityClient, GetIdCommand } from '@aws-sdk/client-cognito-identity';
 
-const s3Client = new S3Client({ region: process.env.AWS_REGION });
-const cognitoClient = new CognitoIdentityClient({ region: process.env.AWS_REGION });
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+const cognitoClient = new CognitoIdentityClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 const DOCUMENT_BUCKET = process.env.DOCUMENT_BUCKET!;
 const QUARANTINE_BUCKET = process.env.QUARANTINE_BUCKET!;

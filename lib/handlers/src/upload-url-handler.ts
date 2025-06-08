@@ -3,12 +3,11 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { CognitoIdentityClient, GetIdCommand, GetCredentialsForIdentityCommand } from '@aws-sdk/client-cognito-identity';
 
-const s3Client = new S3Client({ region: process.env.AWS_REGION });
-const cognitoClient = new CognitoIdentityClient({ region: process.env.AWS_REGION });
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
+const cognitoClient = new CognitoIdentityClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 const DOCUMENT_BUCKET = process.env.DOCUMENT_BUCKET!;
 const IDENTITY_POOL_ID = process.env.IDENTITY_POOL_ID!;
-const COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID!;
 const COGNITO_PROVIDER_NAME = process.env.COGNITO_PROVIDER_NAME!;
 
 interface UploadRequest {

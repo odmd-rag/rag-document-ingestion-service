@@ -39,10 +39,12 @@ export class RagDocumentIngestionStack extends cdk.Stack {
 
         // Document validation Lambda function
         const validationHandler = new NodejsFunction(this, 'ValidationHandler', {
-            entry: __dirname + '/handlers/validation-handler.ts',
+            entry: __dirname + '/handlers/src/validation-handler.ts',
             runtime: lambda.Runtime.NODEJS_22_X,
             timeout: cdk.Duration.minutes(5),
             memorySize: 512,
+            projectRoot: __dirname + '/handlers',
+            depsLockFilePath: __dirname + '/handlers/package-lock.json',
             environment: {
                 DOCUMENT_BUCKET: documentBucket.bucketName,
                 QUARANTINE_BUCKET: quarantineBucket.bucketName,
@@ -66,10 +68,12 @@ export class RagDocumentIngestionStack extends cdk.Stack {
 
         // Pre-signed URL generator Lambda
         const uploadUrlHandler = new NodejsFunction(this, 'UploadUrlHandler', {
-            entry: __dirname + '/handlers/upload-url-handler.ts',
+            entry: __dirname + '/handlers/src/upload-url-handler.ts',
             runtime: lambda.Runtime.NODEJS_22_X,
             timeout: cdk.Duration.seconds(30),
             memorySize: 256,
+            projectRoot: __dirname + '/handlers',
+            depsLockFilePath: __dirname + '/handlers/package-lock.json',
             environment: {
                 DOCUMENT_BUCKET: documentBucket.bucketName,
             },
@@ -79,10 +83,12 @@ export class RagDocumentIngestionStack extends cdk.Stack {
 
         // Document status API Lambda
         const statusHandler = new NodejsFunction(this, 'StatusHandler', {
-            entry: __dirname + '/handlers/status-handler.ts',
+            entry: __dirname + '/handlers/src/status-handler.ts',
             runtime: lambda.Runtime.NODEJS_22_X,
             timeout: cdk.Duration.seconds(30),
             memorySize: 256,
+            projectRoot: __dirname + '/handlers',
+            depsLockFilePath: __dirname + '/handlers/package-lock.json',
             environment: {
                 DOCUMENT_BUCKET: documentBucket.bucketName,
                 QUARANTINE_BUCKET: quarantineBucket.bucketName,
