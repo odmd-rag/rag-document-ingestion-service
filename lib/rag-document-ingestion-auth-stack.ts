@@ -1,16 +1,16 @@
 import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
+import {Construct} from 'constructs';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
-import { RagDocumentIngestionEnver } from '@odmd-rag/contracts-lib-rag';
+import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
 
 export class RagDocumentIngestionAuthStack extends cdk.Stack {
     public readonly identityPool: cognito.CfnIdentityPool;
     public readonly uploadRole: iam.Role;
     public readonly apiAccessPolicy: iam.ManagedPolicy;
 
-    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props?: cdk.StackProps) {
-        const id = myEnver.getRevStackNames()[1]; // Use second stack name for auth
+    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps) {
+        const id = myEnver.getRevStackNames()[0] + '-auth'; // Use second stack name for auth
         super(scope, id, props);
 
         // Get clientId and providerName from user auth service
@@ -71,7 +71,7 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
         new cognito.CfnIdentityPoolRoleAttachment(this, 'IdentityPoolRoleAttachment', {
             identityPoolId: this.identityPool.ref,
             roleMappings: {
-                [providerName]: {
+                userPoolId: {
                     type: 'Rules',
                     ambiguousRoleResolution: 'Deny',
                     rulesConfiguration: {

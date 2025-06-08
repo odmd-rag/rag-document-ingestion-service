@@ -28,7 +28,7 @@ async function main() {
 
     // Create both stacks independently - no circular dependencies
     const authStack = new RagDocumentIngestionAuthStack(app, targetEnver, props);
-    const mainStack = new RagDocumentIngestionStack(app, targetEnver, props);
+    const mainStack = new RagDocumentIngestionStack(app, targetEnver, props, authStack);
 }
 
 console.log("main begin.");

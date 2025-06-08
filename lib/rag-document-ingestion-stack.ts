@@ -9,10 +9,11 @@ import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrat
 import { HttpIamAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { RagDocumentIngestionEnver } from '@odmd-rag/contracts-lib-rag';
+import {RagDocumentIngestionAuthStack} from "./rag-document-ingestion-auth-stack";
 
 export class RagDocumentIngestionStack extends cdk.Stack {
 
-    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props?: cdk.StackProps) {
+    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps, authStack: RagDocumentIngestionAuthStack) {
         const id = myEnver.getRevStackNames()[0];
         super(scope, id, props);
 
@@ -145,6 +146,11 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         new cdk.CfnOutput(this, 'EventBusArn', {
             value: eventBus.eventBusArn,
             exportName: `${this.stackName}-EventBus`,
+        });
+
+        new cdk.CfnOutput(this, 'authUpldrolearn', {
+            value: authStack.uploadRole.roleArn,
+            exportName: `authStack-uploadRole-ApiAccessPolicy`,
         });
     }
 } 
