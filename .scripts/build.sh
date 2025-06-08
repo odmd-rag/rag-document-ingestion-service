@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e  # Exit immediately if a command exits with a non-zero status
+set -ex  # Exit immediately if a command exits with a non-zero status
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -49,4 +49,4 @@ echo "=================================================================="
 echo -e "${GREEN}✅ Lambda dependencies installation completed!${NC}"
 echo -e "${BLUE}📝 Note: CDK synthesis and deployment will be handled by OndemandEnv platform${NC}"
 
-cd webui && npm install && npm run build
+cd webUI && npm install && npm run build
