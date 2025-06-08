@@ -3,8 +3,8 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { StackProps } from 'aws-cdk-lib';
 import { RagDocumentIngestionStack } from '../lib/rag-document-ingestion-stack';
-import { RagContracts } from '@odmd-rag/contracts-lib-rag';
-import { OdmdEnverCdk } from '@ondemandenv/contracts-lib-base';
+import { RagDocumentIngestionAuthStack } from '../lib/rag-document-ingestion-auth-stack';
+import {RagContracts, RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
 
 const app = new cdk.App();
 
@@ -24,9 +24,11 @@ async function main() {
 
     new RagContracts(app);
 
-    const targetEnver = RagContracts.inst.getTargetEnver() as OdmdEnverCdk;
+    const targetEnver = RagContracts.inst.getTargetEnver() as RagDocumentIngestionEnver;
 
-    new RagDocumentIngestionStack(app, targetEnver, props);
+    // Create both stacks independently - no circular dependencies
+    const authStack = new RagDocumentIngestionAuthStack(app, targetEnver, props);
+    const mainStack = new RagDocumentIngestionStack(app, targetEnver, props);
 }
 
 console.log("main begin.");

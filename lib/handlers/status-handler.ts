@@ -1,230 +1,269 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import { S3Client, HeadObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import { S3Client, HeadObjectCommand, GetObjectTaggingCommand } from '@aws-sdk/client-s3';
+import { CognitoIdentityClient, GetIdCommand, GetCredentialsForIdentityCommand } from '@aws-sdk/client-cognito-identity';
 
-const s3Client = new S3Client({});
+const s3Client = new S3Client({ region: process.env.AWS_REGION });
+const cognitoClient = new CognitoIdentityClient({ region: process.env.AWS_REGION });
 
-// Configuration
 const DOCUMENT_BUCKET = process.env.DOCUMENT_BUCKET!;
 const QUARANTINE_BUCKET = process.env.QUARANTINE_BUCKET!;
+const IDENTITY_POOL_ID = process.env.IDENTITY_POOL_ID!;
 
 interface DocumentStatus {
     documentId: string;
-    status: 'uploading' | 'processing' | 'validated' | 'quarantined' | 'rejected' | 'not_found';
-    lastUpdated: string;
-    metadata?: {
-        fileName?: string;
-        contentType?: string;
-        fileSize?: number;
-        uploadedAt?: string;
-        uploadedBy?: string;
-        tags?: string[];
-        category?: string;
-        priority?: string;
-    };
-    location?: {
-        bucket: string;
-        key: string;
-    };
-    quarantineInfo?: {
-        reason: string;
-        quarantinedAt: string;
-    };
-    processingStage?: string;
-    estimatedCompletion?: string;
+    status: 'pending' | 'validated' | 'rejected' | 'quarantined' | 'not_found';
+    fileName?: string;
+    fileSize?: number;
+    uploadedAt?: string;
+    validatedAt?: string;
+    rejectedAt?: string;
+    quarantinedAt?: string;
+    errorMessage?: string;
+    location: 'documents' | 'quarantine' | 'unknown';
+    userIdentityId?: string;
 }
 
-export async function handler(event: APIGatewayProxyEvent, context: Context): Promise<APIGatewayProxyResult> {
-    console.log('Status handler invoked:', JSON.stringify(event, null, 2));
+/**
+ * Validates the authentication token and gets user identity
+ */
+async function validateAndGetUserIdentity(authToken: string): Promise<string> {
+    try {
+        // Extract the ID token from the Authorization header
+        const token = authToken.replace('Bearer ', '');
+        
+        // For federated identity, we need to get the identity ID from Cognito
+        const getIdParams = {
+            IdentityPoolId: IDENTITY_POOL_ID,
+            Logins: {
+                // This should match the provider name from the stack
+                [`cognito-idp.${process.env.AWS_REGION}.amazonaws.com/us-east-1_example`]: token
+            }
+        };
 
-    const headers = {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS'
+        const getIdResult = await cognitoClient.send(new GetIdCommand(getIdParams));
+        
+        if (!getIdResult.IdentityId) {
+            throw new Error('Failed to get identity ID');
+        }
+
+        return getIdResult.IdentityId;
+    } catch (error) {
+        console.error('Authentication error:', error);
+        throw new Error('Invalid authentication token');
+    }
+}
+
+/**
+ * Gets document metadata from S3
+ */
+async function getDocumentMetadata(bucket: string, key: string): Promise<any> {
+    try {
+        const headCommand = new HeadObjectCommand({
+            Bucket: bucket,
+            Key: key
+        });
+        
+        const headResult = await s3Client.send(headCommand);
+        
+        // Also get tags if available
+        let tags = {};
+        try {
+            const tagsCommand = new GetObjectTaggingCommand({
+                Bucket: bucket,
+                Key: key
+            });
+            const tagsResult = await s3Client.send(tagsCommand);
+            tags = tagsResult.TagSet?.reduce((acc, tag) => {
+                acc[tag.Key!] = tag.Value!;
+                return acc;
+            }, {} as Record<string, string>) || {};
+        } catch (error) {
+            console.log('No tags found for object:', key);
+        }
+
+        return {
+            ...headResult,
+            Tags: tags
+        };
+    } catch (error) {
+        if ((error as any).name === 'NotFound') {
+            return null;
+        }
+        throw error;
+    }
+}
+
+/**
+ * Checks document status by looking in different S3 locations
+ */
+async function checkDocumentStatus(documentId: string, userIdentityId: string): Promise<DocumentStatus> {
+    const result: DocumentStatus = {
+        documentId,
+        status: 'not_found',
+        location: 'unknown'
     };
 
-    // Handle CORS preflight
-    if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 200,
-            headers,
-            body: ''
-        };
+    // First, try to find the document in the main documents bucket
+    // Look for documents with the user's identity ID in the path
+    const possibleKeys = [
+        `uploads/${userIdentityId}/${documentId}`,
+        `validated/${userIdentityId}/${documentId}`,
+        `uploads/${userIdentityId}/*${documentId}*`
+    ];
+
+    for (const pattern of possibleKeys) {
+        if (pattern.includes('*')) {
+            // This would require listing objects, which is more complex
+            // For now, skip pattern matching
+            continue;
+        }
+        
+        const metadata = await getDocumentMetadata(DOCUMENT_BUCKET, pattern);
+        if (metadata) {
+            result.status = 'validated';
+            result.location = 'documents';
+            result.fileName = metadata.Metadata?.['original-filename'];
+            result.fileSize = metadata.ContentLength;
+            result.uploadedAt = metadata.Metadata?.['upload-timestamp'];
+            result.validatedAt = metadata.LastModified?.toISOString();
+            result.userIdentityId = metadata.Metadata?.['user-identity-id'];
+            return result;
+        }
     }
 
-    try {
-        const documentId = event.pathParameters?.documentId;
+    // Check quarantine bucket
+    const quarantineKeys = [
+        `quarantine/${userIdentityId}/${documentId}`,
+        `quarantine/${userIdentityId}/*${documentId}*`
+    ];
+
+    for (const pattern of quarantineKeys) {
+        if (pattern.includes('*')) {
+            continue;
+        }
         
+        const metadata = await getDocumentMetadata(QUARANTINE_BUCKET, pattern);
+        if (metadata) {
+            result.status = metadata.Metadata?.['quarantine-reason'] ? 'quarantined' : 'rejected';
+            result.location = 'quarantine';
+            result.fileName = metadata.Metadata?.['original-filename'];
+            result.fileSize = metadata.ContentLength;
+            result.uploadedAt = metadata.Metadata?.['upload-timestamp'];
+            result.quarantinedAt = metadata.LastModified?.toISOString();
+            result.errorMessage = metadata.Metadata?.['quarantine-reason'] || metadata.Metadata?.['rejection-reason'];
+            result.userIdentityId = metadata.Metadata?.['user-identity-id'];
+            return result;
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Gets the status of a document upload/processing
+ */
+export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+    console.log('Status check request:', JSON.stringify(event, null, 2));
+
+    try {
+        // Validate authentication
+        const authHeader = event.headers.Authorization || event.headers.authorization;
+        if (!authHeader) {
+            return {
+                statusCode: 401,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                },
+                body: JSON.stringify({
+                    error: 'Authentication required',
+                    message: 'Authorization header is missing'
+                })
+            };
+        }
+
+        // Validate user identity with Cognito
+        let userIdentityId: string;
+        try {
+            userIdentityId = await validateAndGetUserIdentity(authHeader);
+        } catch (error) {
+            return {
+                statusCode: 401,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                },
+                body: JSON.stringify({
+                    error: 'Authentication failed',
+                    message: error instanceof Error ? error.message : 'Invalid authentication token'
+                })
+            };
+        }
+
+        // Get document ID from path parameters
+        const documentId = event.pathParameters?.documentId;
         if (!documentId) {
             return {
                 statusCode: 400,
-                headers,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
                 body: JSON.stringify({
-                    error: 'Document ID is required',
-                    message: 'Please provide a valid document ID in the path'
+                    error: 'Bad Request',
+                    message: 'documentId is required in the path'
                 })
             };
         }
 
-        console.log(`Checking status for document: ${documentId}`);
-
-        // Try to find the document in various locations
-        const documentStatus = await findDocumentStatus(documentId);
-
-        if (documentStatus.status === 'not_found') {
+        // Validate that the document ID is safe
+        if (!/^[a-zA-Z0-9\-_\.]+$/.test(documentId)) {
             return {
-                statusCode: 404,
-                headers,
+                statusCode: 400,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                },
                 body: JSON.stringify({
-                    error: 'Document not found',
-                    message: `Document with ID ${documentId} was not found`,
-                    documentId
+                    error: 'Bad Request',
+                    message: 'Invalid documentId format'
                 })
             };
         }
+
+        // Check document status
+        const status = await checkDocumentStatus(documentId, userIdentityId);
 
         return {
             statusCode: 200,
-            headers,
-            body: JSON.stringify(documentStatus)
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            },
+            body: JSON.stringify({
+                ...status,
+                requestedBy: userIdentityId,
+                checkedAt: new Date().toISOString()
+            })
         };
 
     } catch (error) {
         console.error('Error checking document status:', error);
-        
+
         return {
             statusCode: 500,
-            headers,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+            },
             body: JSON.stringify({
-                error: 'Internal server error',
+                error: 'Internal Server Error',
                 message: 'Failed to check document status',
-                requestId: context.awsRequestId
+                requestId: event.requestContext?.requestId
             })
         };
     }
-}
-
-async function findDocumentStatus(documentId: string): Promise<DocumentStatus> {
-    const currentDate = new Date().toISOString().split('T')[0];
-    
-    // Search patterns for different locations
-    const searchPatterns = [
-        `uploads/${currentDate}/${documentId}/`,
-        `uploads/*/${documentId}/`,
-        `processed/${documentId}/`,
-        `quarantine/*/${documentId}/`
-    ];
-
-    // Try to find the document in the main bucket
-    try {
-        const documentInfo = await searchInBucket(DOCUMENT_BUCKET, documentId, searchPatterns);
-        if (documentInfo) {
-            return {
-                documentId,
-                status: 'validated',
-                lastUpdated: documentInfo.lastModified,
-                metadata: documentInfo.metadata,
-                location: {
-                    bucket: DOCUMENT_BUCKET,
-                    key: documentInfo.key
-                },
-                processingStage: 'completed'
-            };
-        }
-    } catch (error) {
-        console.log(`Document not found in main bucket: ${error}`);
-    }
-
-    // Try to find the document in quarantine
-    try {
-        const quarantineInfo = await searchInBucket(QUARANTINE_BUCKET, documentId, [`quarantine/*/${documentId}/`]);
-        if (quarantineInfo) {
-            return {
-                documentId,
-                status: 'quarantined',
-                lastUpdated: quarantineInfo.lastModified,
-                metadata: quarantineInfo.metadata,
-                location: {
-                    bucket: QUARANTINE_BUCKET,
-                    key: quarantineInfo.key
-                },
-                quarantineInfo: {
-                    reason: quarantineInfo.metadata?.quarantineReason || 'Unknown reason',
-                    quarantinedAt: quarantineInfo.metadata?.quarantineTimestamp || quarantineInfo.lastModified
-                },
-                processingStage: 'quarantined'
-            };
-        }
-    } catch (error) {
-        console.log(`Document not found in quarantine bucket: ${error}`);
-    }
-
-    // If not found anywhere, return not_found status
-    return {
-        documentId,
-        status: 'not_found',
-        lastUpdated: new Date().toISOString()
-    };
-}
-
-async function searchInBucket(bucket: string, documentId: string, patterns: string[]): Promise<{
-    key: string;
-    lastModified: string;
-    metadata: any;
-} | null> {
-    
-    for (const pattern of patterns) {
-        try {
-            const prefix = pattern.replace('*', '').replace(`${documentId}/`, '');
-            
-            const listCommand = new ListObjectsV2Command({
-                Bucket: bucket,
-                Prefix: prefix,
-                MaxKeys: 100
-            });
-
-            const listResponse = await s3Client.send(listCommand);
-            
-            if (listResponse.Contents) {
-                // Look for objects that contain the document ID
-                const matchingObjects = listResponse.Contents.filter(obj => 
-                    obj.Key && obj.Key.includes(documentId)
-                );
-
-                if (matchingObjects.length > 0) {
-                    const firstMatch = matchingObjects[0];
-                    
-                    // Get detailed metadata
-                    const headCommand = new HeadObjectCommand({
-                        Bucket: bucket,
-                        Key: firstMatch.Key!
-                    });
-
-                    const headResponse = await s3Client.send(headCommand);
-
-                    return {
-                        key: firstMatch.Key!,
-                        lastModified: firstMatch.LastModified?.toISOString() || new Date().toISOString(),
-                        metadata: {
-                            fileName: headResponse.Metadata?.['original-filename'],
-                            contentType: headResponse.ContentType,
-                            fileSize: headResponse.ContentLength,
-                            uploadedAt: headResponse.Metadata?.['uploaded-at'],
-                            uploadedBy: headResponse.Metadata?.['uploaded-by'],
-                            tags: headResponse.Metadata?.['tags']?.split(','),
-                            category: headResponse.Metadata?.['category'],
-                            priority: headResponse.Metadata?.['priority'],
-                            quarantineReason: headResponse.Metadata?.['quarantine-reason'],
-                            quarantineTimestamp: headResponse.Metadata?.['quarantine-timestamp']
-                        }
-                    };
-                }
-            }
-        } catch (error) {
-            console.log(`Error searching with pattern ${pattern}:`, error);
-            continue;
-        }
-    }
-
-    return null;
-} 
+}; 

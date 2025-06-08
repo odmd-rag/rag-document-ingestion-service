@@ -11,7 +11,7 @@
     "watch": "tsc -w",
     "clean": "rimraf dist/",
     "test": "jest",
-    "test:watch": "jest --watch", 
+    "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "cdk": "cdk",
     "cdk-synth": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev cdk synth --all --profile odmd-rag-ws1",
@@ -20,22 +20,24 @@
     "start": "node dist/app.js"
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.100.0",
+    "@aws-sdk/client-cognito-identity": "^3.826.0",
+    "@aws-sdk/client-eventbridge": "^3.826.0",
+    "@aws-sdk/client-s3": "^3.826.0",
+    "@aws-sdk/s3-presigned-post": "^3.826.0",
+    "@aws-sdk/s3-request-presigner": "^3.826.0",
+    "aws-cdk-lib": "2.200.1",
     "constructs": "^10.0.0",
+    "mime-types": "^2.1.35",
     "source-map-support": "^0.5.21",
-    "@aws-sdk/client-s3": "^3.400.0",
-    "@aws-sdk/client-eventbridge": "^3.400.0",
-    "@aws-sdk/s3-presigned-post": "^3.400.0",
-    "uuid": "^9.0.0",
-    "mime-types": "^2.1.35"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@odmd-rag/contracts-lib-rag": "1.0.0",
+    "@odmd-rag/contracts-lib-rag": "1.0.3",
     "@types/aws-lambda": "^8.10.119",
     "@types/jest": "^29.5.14",
+    "@types/mime-types": "^2.1.1",
     "@types/node": "^20.5.0",
     "@types/uuid": "^9.0.2",
-    "@types/mime-types": "^2.1.1",
     "@typescript-eslint/eslint-plugin": "^6.4.0",
     "@typescript-eslint/parser": "^6.4.0",
     "cross-env": "^7.0.3",
@@ -49,8 +51,14 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "roots": ["<rootDir>/src", "<rootDir>/tests"],
-    "testMatch": ["**/__tests__/**/*.ts", "**/?(*.)+(spec|test).ts"],
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/tests"
+    ],
+    "testMatch": [
+      "**/__tests__/**/*.ts",
+      "**/?(*.)+(spec|test).ts"
+    ],
     "collectCoverageFrom": [
       "src/**/*.ts",
       "!src/**/*.d.ts",
@@ -70,4 +78,4 @@
     "type": "git",
     "url": "https://github.com/odmd-rag/rag-document-ingestion-service.git"
   }
-} 
+}

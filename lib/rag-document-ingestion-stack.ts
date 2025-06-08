@@ -4,19 +4,17 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3Notifications from 'aws-cdk-lib/aws-s3-notifications';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as events from 'aws-cdk-lib/aws-events';
-import * as eventsTargets from 'aws-cdk-lib/aws-events-targets';
-import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import * as iam from 'aws-cdk-lib/aws-iam';
+import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
+import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
+import { HttpIamAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
-import { OdmdEnverCdk } from '@ondemandenv/contracts-lib-base';
 import { RagDocumentIngestionEnver } from '@odmd-rag/contracts-lib-rag';
 
 export class RagDocumentIngestionStack extends cdk.Stack {
-    constructor(scope: Construct, enver: OdmdEnverCdk, props?: cdk.StackProps) {
-        const id = enver.getRevStackNames()[0];
-        super(scope, id, props);
 
-        const myEnver = enver as RagDocumentIngestionEnver;
+    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props?: cdk.StackProps) {
+        const id = myEnver.getRevStackNames()[0];
+        super(scope, id, props);
 
         // Create EventBridge custom bus for document events
         const eventBus = new events.EventBus(this, 'DocumentEventBus', {
@@ -42,7 +40,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // Document validation Lambda function
         const validationHandler = new NodejsFunction(this, 'ValidationHandler', {
             entry: __dirname + '/handlers/validation-handler.ts',
-            runtime: lambda.Runtime.NODEJS_18_X,
+            runtime: lambda.Runtime.NODEJS_22_X,
             timeout: cdk.Duration.minutes(5),
             memorySize: 512,
             environment: {
@@ -69,7 +67,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // Pre-signed URL generator Lambda
         const uploadUrlHandler = new NodejsFunction(this, 'UploadUrlHandler', {
             entry: __dirname + '/handlers/upload-url-handler.ts',
-            runtime: lambda.Runtime.NODEJS_18_X,
+            runtime: lambda.Runtime.NODEJS_22_X,
             timeout: cdk.Duration.seconds(30),
             memorySize: 256,
             environment: {
@@ -82,7 +80,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // Document status API Lambda
         const statusHandler = new NodejsFunction(this, 'StatusHandler', {
             entry: __dirname + '/handlers/status-handler.ts',
-            runtime: lambda.Runtime.NODEJS_18_X,
+            runtime: lambda.Runtime.NODEJS_22_X,
             timeout: cdk.Duration.seconds(30),
             memorySize: 256,
             environment: {
@@ -94,24 +92,33 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         documentBucket.grantRead(statusHandler);
         quarantineBucket.grantRead(statusHandler);
 
-        // API Gateway
-        const api = new apigateway.RestApi(this, 'DocumentIngestionApi', {
-            restApiName: 'RAG Document Ingestion Service',
-            description: 'API for RAG document ingestion operations',
-            defaultCorsPreflightOptions: {
-                allowOrigins: apigateway.Cors.ALL_ORIGINS,
-                allowMethods: apigateway.Cors.ALL_METHODS,
+        // HTTP API Gateway with IAM authorization
+        const httpApi = new apigatewayv2.HttpApi(this, 'DocumentIngestionApi', {
+            apiName: 'RAG Document Ingestion Service',
+            description: 'HTTP API for RAG document ingestion operations with IAM authentication',
+            corsPreflight: {
+                allowOrigins: ['*'],
+                allowMethods: [apigatewayv2.CorsHttpMethod.GET, apigatewayv2.CorsHttpMethod.POST, apigatewayv2.CorsHttpMethod.OPTIONS],
+                allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token', 'X-Amz-User-Agent'],
             },
         });
 
-        // API endpoints
-        const uploadResource = api.root.addResource('upload');
-        uploadResource.addMethod('POST', new apigateway.LambdaIntegration(uploadUrlHandler));
+        // API endpoints with IAM authentication using HttpIamAuthorizer
+        const iamAuthorizer = new HttpIamAuthorizer();
 
-        const statusResource = api.root.addResource('status');
-        statusResource.addResource('{documentId}').addMethod('GET', 
-            new apigateway.LambdaIntegration(statusHandler)
-        );
+        httpApi.addRoutes({
+            path: '/upload',
+            methods: [apigatewayv2.HttpMethod.POST],
+            integration: new apigatewayv2Integrations.HttpLambdaIntegration('UploadIntegration', uploadUrlHandler),
+            authorizer: iamAuthorizer,
+        });
+
+        httpApi.addRoutes({
+            path: '/status/{documentId}',
+            methods: [apigatewayv2.HttpMethod.GET],
+            integration: new apigatewayv2Integrations.HttpLambdaIntegration('StatusIntegration', statusHandler),
+            authorizer: iamAuthorizer,
+        });
 
         // Output values for other services to consume
         new cdk.CfnOutput(this, 'DocumentBucketName', {
@@ -125,7 +132,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         });
 
         new cdk.CfnOutput(this, 'ApiEndpoint', {
-            value: api.url,
+            value: httpApi.url!,
             exportName: `${this.stackName}-ApiEndpoint`,
         });
 
