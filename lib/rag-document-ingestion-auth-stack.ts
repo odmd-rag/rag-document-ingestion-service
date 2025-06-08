@@ -74,6 +74,7 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
                 userPoolId: {
                     type: 'Rules',
                     ambiguousRoleResolution: 'Deny',
+                    identityProvider: `${providerName}:${clientId}`,
                     rulesConfiguration: {
                         rules: [
                             {
