@@ -7,7 +7,6 @@ import { RagDocumentIngestionAuthStack } from '../lib/rag-document-ingestion-aut
 import { RagDocumentIngestionWebHostingStack } from '../lib/rag-document-ingestion-web-hosting-stack';
 import { RagDocumentIngestionWebUiStack } from '../lib/rag-document-ingestion-web-ui-stack';
 import {RagContracts, RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
-import { execSync } from 'child_process';
 
 const app = new cdk.App({autoSynth:false});
 
