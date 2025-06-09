@@ -6,18 +6,19 @@ import {AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId} from "aw
 import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
 import {RagDocumentIngestionAuthStack} from './rag-document-ingestion-auth-stack';
 import {RagDocumentIngestionStack} from './rag-document-ingestion-stack';
+import {RagDocumentIngestionWebHostingStack} from "./rag-document-ingestion-web-hosting-stack";
 
 export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 
     readonly targetBucket: Bucket;
-    readonly webDomain: string;
+    readonly webHostingStack: RagDocumentIngestionWebHostingStack;
     readonly myEnver: RagDocumentIngestionEnver;
     readonly authStack: RagDocumentIngestionAuthStack;
     readonly mainStack: RagDocumentIngestionStack;
 
     constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps & {
         bucket: Bucket;
-        webDomain: string;
+        webHostingStack: RagDocumentIngestionWebHostingStack;
         authStack: RagDocumentIngestionAuthStack;
         mainStack: RagDocumentIngestionStack;
     }) {
@@ -25,7 +26,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
         super(scope, id, props);
 
         this.targetBucket = props.bucket;
-        this.webDomain = props.webDomain;
+        this.webHostingStack = props.webHostingStack;
         this.myEnver = myEnver;
         this.authStack = props.authStack;
         this.mainStack = props.mainStack;
@@ -60,10 +61,11 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
                 userPoolId: clientId, // This is the client ID from user-auth service contracts
                 providerName: providerName, // This is the provider name like "cognito-idp.region.amazonaws.com/userPoolId"
             },
+            authZoneName: this.webHostingStack.zoneName,
             deployment: {
                 timestamp: now,
                 version: '1.0.0',
-                webDomain: this.webDomain,
+                webDomain: this.webHostingStack.webSubFQDN,
             }
         };
 
@@ -99,7 +101,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 
 ## Deployed Configuration
 
-- **Web Domain**: ${this.webDomain}
+- **Web Domain**: ${this.webHostingStack}
 - **API Endpoint**: ${this.mainStack.httpApi.url}
 - **Identity Pool ID**: ${this.authStack.identityPool.ref}
 - **Region**: ${this.region}
@@ -121,7 +123,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 Users must be added to the **"odmd-rag-uploader"** group in Cognito to upload documents.
 
 ### Testing
-1. Visit: https://${this.webDomain}
+1. Visit: https://${this.webHostingStack}
 2. Sign in with Google (via user-auth service)
 3. Upload a test document
 4. Monitor status in the UI
@@ -170,7 +172,7 @@ This web UI integrates with the RAG system through:
 
         // Output important URLs and IDs
         new cdk.CfnOutput(this, 'WebUIURL', {
-            value: `https://${this.webDomain}`,
+            value: `https://${this.webHostingStack}`,
             description: 'URL of the deployed web UI',
         });
 

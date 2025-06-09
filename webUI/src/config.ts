@@ -1,5 +1,5 @@
 // Configuration interface
-interface Config {
+export interface Config {
   aws: {
     region: string;
     identityPoolId: string;
@@ -12,6 +12,7 @@ interface Config {
     userPoolId: string;
     providerName: string;
   };
+  authZoneName: string;
   deployment?: {
     timestamp: string;
     version: string;
@@ -33,6 +34,7 @@ const defaultConfig: Config = {
     userPoolId: '',
     providerName: '',
   },
+  authZoneName: ''
 };
 
 // Runtime configuration loaded from deployed config.json

@@ -19,10 +19,15 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
 
     readonly bucket: Bucket;
     readonly webSubFQDN: string;
+    readonly zoneName: string;
+    readonly hostedZoneId: string;
 
     constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps) {
         const id = myEnver.getRevStackNames()[2]
         super(scope, id, {...props, crossRegionReferences: props.env!.region != 'us-east-1'});
+        // Get hosted zone information from shared values
+        this.hostedZoneId = 'Z01450892FNOJJT5BBBRU';
+        this.zoneName = 'rag-ws1.root.ondemandenv.link';
 
         this.bucket = new Bucket(this, 'webUiBucket', {
             bucketName: `rag-webui-${this.account}-${this.region}`,
@@ -33,19 +38,16 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
             autoDeleteObjects: true,
         });
 
-        // Get hosted zone information from shared values
-        const hostedZoneId = 'Z01450892FNOJJT5BBBRU';
-        const zoneName = 'rag-ws1.root.ondemandenv.link';
 
         const hostedZone = HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
-            hostedZoneId,
-            zoneName,
+            hostedZoneId: this.hostedZoneId,
+            zoneName: this.zoneName,
         });
 
         this.bucket.grantRead(new ServicePrincipal('cloudfront.amazonaws.com'));
 
         const webSubdomain = 'rag-docs';
-        this.webSubFQDN = webSubdomain + '.' + zoneName;
+        this.webSubFQDN = webSubdomain + '.' + this.zoneName;
 
         const origin = S3BucketOrigin.withOriginAccessControl(this.bucket);
         const additionalBehaviors = this.createAssetBehaviors(origin);

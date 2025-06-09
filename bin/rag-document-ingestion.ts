@@ -40,7 +40,7 @@ async function main() {
     const webUiStack = new RagDocumentIngestionWebUiStack(app, targetEnver, {
         ...props,
         bucket: webHostingStack.bucket,
-        webDomain: webHostingStack.webSubFQDN,
+        webHostingStack: webHostingStack,
         authStack: authStack,
         mainStack: mainStack,
     });
