@@ -32,7 +32,7 @@ export class AuthService {
             apiEndpoint: this.config.aws.apiEndpoint,
             providerName: this.config.cognito.providerName,
             userPoolId: this.config.cognito.userPoolId,
-            authZoneName: this.config.authZoneName
+            userPoolDomain: this.config.cognito.userPoolDomain
         });
     }
 
@@ -53,22 +53,15 @@ export class AuthService {
         const state = this.generateRandomState();
         localStorage.setItem('oauth_state', state);
 
-        // Build the OAuth URL to the user-auth service (not directly to User Pool)
-        const redirectUri = window.location.hostname === 'localhost'
-            ? 'http://localhost:5173/index.html?callback'
-            : `https://${this.config.deployment?.webDomain || window.location.hostname}/index.html?callback`;
-
         const params = new URLSearchParams({
             response_type: 'code',
             client_id: this.config.cognito.userPoolId, // This is actually the client ID from user-auth service
-            redirect_uri: redirectUri,
-            scope: 'email profile openid',
+            redirect_uri: this.config.redirectUri,
             state,
             identity_provider: 'Google'
         });
 
-        // Use the OAuth endpoint from user-auth service instead of constructing Cognito domain
-        window.location.href = `${this.config.authZoneName}?${params.toString()}`;
+        window.location.href = `https://${this.config.cognito.userPoolDomain}/oauth2/authorize?${params.toString()}`;
     }
 
     private generateRandomState(): string {
@@ -91,13 +84,7 @@ export class AuthService {
             throw new Error('No authorization code received');
         }
 
-        // Exchange code for tokens via user-auth service
-        const redirectUri = window.location.hostname === 'localhost'
-            ? 'http://localhost:5173/index.html?callback'
-            : `https://${this.config.deployment?.webDomain || window.location.hostname}/index.html?callback`;
-
-        // Use the token endpoint from user-auth service instead of constructing Cognito domain
-        const tokenResponse = await fetch(`https://${this.config.authZoneName}/oauth2/token`, {
+        const tokenResponse = await fetch(`https://${this.config.cognito.userPoolDomain}/oauth2/token`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
@@ -105,7 +92,7 @@ export class AuthService {
             body: new URLSearchParams({
                 grant_type: 'authorization_code',
                 client_id: this.config.cognito.userPoolId, // This is the client ID from user-auth service
-                redirect_uri: redirectUri,
+                redirect_uri: this.config.redirectUri,
                 code
             })
         });

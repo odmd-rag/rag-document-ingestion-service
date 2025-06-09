@@ -1,76 +1,58 @@
 // Configuration interface
 export interface Config {
-  aws: {
-    region: string;
-    identityPoolId: string;
-    apiEndpoint: string;
-  };
-  google: {
-    clientId: string;
-  };
-  cognito: {
-    userPoolId: string;
-    providerName: string;
-  };
-  authZoneName: string;
-  deployment?: {
-    timestamp: string;
-    version: string;
-    webDomain: string;
-  };
+    aws: {
+        region: string;
+        identityPoolId: string;
+        apiEndpoint: string;
+    };
+    google: {
+        clientId: string;
+    };
+    cognito: {
+        userPoolId: string;
+        providerName: string;
+        userPoolDomain: string;
+    };
+    deployment: {
+        timestamp: string;
+        version: string;
+        webDomain: string;
+    };
+    redirectUri:string
 }
 
-// Default configuration (fallback)
-const defaultConfig: Config = {
-  aws: {
-    region: 'us-east-1',
-    identityPoolId: '',
-    apiEndpoint: '',
-  },
-  google: {
-    clientId: '',
-  },
-  cognito: {
-    userPoolId: '',
-    providerName: '',
-  },
-  authZoneName: ''
-};
 
 // Runtime configuration loaded from deployed config.json
 let runtimeConfig: Config | null = null;
 
 // Load configuration from the deployed config.json file
 export async function loadConfig(): Promise<Config> {
-  if (runtimeConfig) {
-    return runtimeConfig;
-  }
-
-  try {
-    const response = await fetch('/config.json?t=' + Date.now()); // Cache bust
-    if (response.ok) {
-      runtimeConfig = await response.json();
-      console.log('✅ Loaded runtime configuration from /config.json');
-      return runtimeConfig!; // We know it's not null here
-    } else {
-      console.warn('⚠️ Failed to load /config.json, using default configuration');
+    if (runtimeConfig) {
+        return runtimeConfig;
     }
-  } catch (error) {
-    console.warn('⚠️ Error loading /config.json:', error);
-  }
 
-  runtimeConfig = defaultConfig;
-  return runtimeConfig;
+    try {
+        const response = await fetch('/config.json?t=' + Date.now()); // Cache bust
+        if (response.ok) {
+            runtimeConfig = await response.json();
+            runtimeConfig!.redirectUri = window.location.hostname == 'localhost'
+                ? 'http://localhost:5173/index.html?callback'
+                : `https://${runtimeConfig!.cognito.userPoolDomain}/index.html?callback`
+
+            console.log('✅ Loaded runtime configuration from /config.json');
+            return runtimeConfig!; // We know it's not null here
+        } else {
+            console.warn('⚠️ Failed to load /config.json, using default configuration');
+            throw new Error('Failed to load /config.json');
+        }
+    } catch (error) {
+        console.warn('⚠️ Error loading /config.json:', error);
+        throw error
+    }
+
 }
 
 // Get current configuration (use after calling loadConfig)
 export function getConfig(): Config {
-  if (!runtimeConfig) {
-    console.warn('⚠️ Configuration not loaded yet, using default');
-    return defaultConfig;
-  }
-  return runtimeConfig;
+    return runtimeConfig!;
 }
-
-// Legacy export for backward compatibility during development
-export const config = defaultConfig; 
