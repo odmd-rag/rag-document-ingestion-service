@@ -37,7 +37,7 @@ export async function loadConfig(): Promise<Config> {
             runtimeConfig = await response.json();
             runtimeConfig!.redirectUri = window.location.hostname == 'localhost'
                 ? 'http://localhost:5173/index.html?callback'
-                : `https://${runtimeConfig!.cognito.userPoolDomain}/index.html?callback`
+                : `https://${runtimeConfig!.deployment.webDomain}/index.html?callback`
 
             console.log('✅ Loaded runtime configuration from /config.json');
             return runtimeConfig!; // We know it's not null here
