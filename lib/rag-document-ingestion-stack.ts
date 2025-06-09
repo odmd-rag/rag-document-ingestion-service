@@ -9,13 +9,28 @@ import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrat
 import {HttpIamAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import {NodejsFunction} from 'aws-cdk-lib/aws-lambda-nodejs';
 import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
+import {Certificate, CertificateValidation} from "aws-cdk-lib/aws-certificatemanager";
+import {ARecord, HostedZone, RecordTarget} from "aws-cdk-lib/aws-route53";
+import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
+import {Stack} from "aws-cdk-lib";
 
 export class RagDocumentIngestionStack extends cdk.Stack {
     readonly httpApi: apigatewayv2.HttpApi;
+    readonly apiDomain: string;
 
-    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps) {
+    constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps & {
+        zoneName: string;
+        hostedZoneId: string;
+        webUiDomain: string;
+    }) {
         const id = myEnver.getRevStackNames()[0];
-        super(scope, id, props);
+        super(scope, id, {...props, crossRegionReferences: props.env!.region !== 'us-east-1'});
+
+        // Use the same domain setup as web hosting
+        const zoneName = props.zoneName;
+        const hostedZoneId = props.hostedZoneId;
+        const apiSubdomain = 'rag-api';
+        this.apiDomain = `${apiSubdomain}.${zoneName}`;
 
         // Create EventBridge custom bus for document events
         const eventBus = new events.EventBus(this, 'DocumentEventBus', {
@@ -100,11 +115,14 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         quarantineBucket.grantRead(statusHandler);
 
         // HTTP API Gateway with IAM authorization
+        const allowedOrigins = ['http://localhost:5173'];
+        allowedOrigins.push(`https://${props.webUiDomain}`);
+
         this.httpApi = new apigatewayv2.HttpApi(this, 'DocumentIngestionApi', {
             apiName: 'RAG Document Ingestion Service',
             description: 'HTTP API for RAG document ingestion operations with IAM authentication',
             corsPreflight: {
-                allowOrigins: ['*'],
+                allowOrigins: allowedOrigins,
                 allowMethods: [apigatewayv2.CorsHttpMethod.GET, apigatewayv2.CorsHttpMethod.POST, apigatewayv2.CorsHttpMethod.OPTIONS],
                 allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token', 'X-Amz-User-Agent'],
             },
@@ -127,6 +145,44 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             authorizer: iamAuthorizer,
         });
 
+        // Set up custom domain for API Gateway
+        const hostedZone = HostedZone.fromHostedZoneAttributes(this, 'ApiHostedZone', {
+            hostedZoneId: hostedZoneId,
+            zoneName: zoneName,
+        });
+
+        // Certificate must be in us-east-1 for API Gateway custom domains
+        let certStack = this.region === 'us-east-1' ? this : new Stack(this, 'apiCertStack', {
+            crossRegionReferences: true,
+            env: {region: 'us-east-1', account: this.account}
+        });
+
+        const certificate = new Certificate(certStack, 'ApiCertificate', {
+            domainName: this.apiDomain,
+            validation: CertificateValidation.fromDns(hostedZone),
+        });
+
+        const domainName = new apigatewayv2.DomainName(this, 'ApiDomainName', {
+            domainName: this.apiDomain,
+            certificate: certificate,
+        });
+
+        new apigatewayv2.ApiMapping(this, 'ApiMapping', {
+            api: this.httpApi,
+            domainName: domainName,
+        });
+
+        new ARecord(this, 'ApiAliasRecord', {
+            zone: hostedZone,
+            target: RecordTarget.fromAlias(
+                new ApiGatewayv2DomainProperties(
+                    domainName.regionalDomainName,
+                    domainName.regionalHostedZoneId
+                )
+            ),
+            recordName: apiSubdomain,
+        });
+
         // Output values for other services to consume
         new cdk.CfnOutput(this, 'DocumentBucketName', {
             value: documentBucket.bucketName,
@@ -138,9 +194,15 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             exportName: `${this.stackName}-QuarantineBucket`,
         });
 
-        new cdk.CfnOutput(this, 'ApiEndpoint', {
-            value: this.httpApi.url!,
+        new cdk.CfnOutput(this, 'ApiEndpoint-out', {
+            value: `https://${this.apiDomain}`,
             exportName: `${this.stackName}-ApiEndpoint`,
+        });
+
+        new cdk.CfnOutput(this, 'ApiDomainName-out', {
+            value: this.apiDomain,
+            exportName: `${this.stackName}-ApiDomain`,
+            description: 'Custom domain name for the API Gateway',
         });
 
         new cdk.CfnOutput(this, 'ApiGatewayArn', {

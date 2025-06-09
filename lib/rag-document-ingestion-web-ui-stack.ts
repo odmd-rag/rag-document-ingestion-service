@@ -53,7 +53,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
             aws: {
                 region: this.region,
                 identityPoolId: this.authStack.identityPool.ref,
-                apiEndpoint: this.mainStack.httpApi.url,
+                apiEndpoint: `https://${this.mainStack.apiDomain}`,
             },
             google: {
                 clientId: clientId, // Using Google Client ID from auth service contracts
@@ -103,7 +103,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 ## Deployed Configuration
 
 - **Web Domain**: ${this.webHostingStack}
-- **API Endpoint**: ${this.mainStack.httpApi.url}
+- **API Endpoint**: https://${this.mainStack.apiDomain}
 - **Identity Pool ID**: ${this.authStack.identityPool.ref}
 - **Region**: ${this.region}
 - **Google Client ID**: ${clientId} (from auth service contracts)

@@ -144,4 +144,32 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
             exportName: `${this.stackName}-ApiAccessPolicy`,
         });
     }
+
+    /**
+     * Implement the callback URL and logout URL producers for the user-auth service to consume
+     */
+    implementAuthCallbackProducers(myEnver: RagDocumentIngestionEnver, webUiDomain: string) {
+        const callbackUrl = `https://${webUiDomain}/index.html?callback`;
+        const logoutUrl = `https://${webUiDomain}/index.html?logout`;
+
+        // Output the URLs that should be shared with user-auth service
+        // These will be consumed by the user-auth service through the OndemandEnv platform
+        new cdk.CfnOutput(this, 'AuthCallbackUrl', {
+            value: callbackUrl,
+            description: 'OAuth callback URL for user-auth service configuration',
+            exportName: `${this.stackName}-AuthCallbackUrl`,
+        });
+
+        new cdk.CfnOutput(this, 'LogoutUrl', {
+            value: logoutUrl,
+            description: 'Logout URL for user-auth service configuration',
+            exportName: `${this.stackName}-LogoutUrl`,
+        });
+
+        // Also add development localhost callback for testing
+        new cdk.CfnOutput(this, 'DevCallbackUrl', {
+            value: 'http://localhost:5173/index.html?callback',
+            description: 'Development callback URL for local testing',
+        });
+    }
 } 

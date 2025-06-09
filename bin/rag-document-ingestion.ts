@@ -28,13 +28,22 @@ async function main() {
 
     const targetEnver = RagContracts.inst.getTargetEnver() as RagDocumentIngestionEnver;
 
-    // Create main stack first so it can export the API Gateway ARN
-    const mainStack = new RagDocumentIngestionStack(app, targetEnver, props);
+    // Create web hosting stack first to get domain info
+    const webHostingStack = new RagDocumentIngestionWebHostingStack(app, targetEnver, props);
+
+    // Create main stack with domain info for API Gateway custom domain and CORS
+    const mainStack = new RagDocumentIngestionStack(app, targetEnver, {
+        ...props,
+        zoneName: webHostingStack.zoneName,
+        hostedZoneId: webHostingStack.hostedZoneId,
+        webUiDomain: webHostingStack.webSubFQDN,
+    });
     
     // Create auth stack after main stack so it can import the API Gateway ARN
     const authStack = new RagDocumentIngestionAuthStack(app, targetEnver, props);
 
-    const webHostingStack = new RagDocumentIngestionWebHostingStack(app, targetEnver, props);
+    // Implement auth callback producers for user-auth service to consume
+    authStack.implementAuthCallbackProducers(targetEnver, webHostingStack.webSubFQDN);
     
     const webUiStack = new RagDocumentIngestionWebUiStack(app, targetEnver, {
         ...props,
