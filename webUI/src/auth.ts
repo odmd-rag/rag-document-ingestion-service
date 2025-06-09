@@ -213,18 +213,3 @@ export class AuthService {
         window.location.href = '/';
     }
 }
-
-// Global Google API types
-declare global {
-    interface Window {
-        google: {
-            accounts: {
-                id: {
-                    initialize: (config: any) => void;
-                    renderButton: (element: HTMLElement, config: any) => void;
-                    disableAutoSelect: () => void;
-                };
-            };
-        };
-    }
-} 

@@ -173,7 +173,8 @@ This web UI integrates with the RAG system through:
 
         new OdmdShareOut(
             this, new Map<OdmdCrossRefProducer<RagDocumentIngestionEnver>, any>([
-                [this.myEnver.authCallbackUrl, this.webHostingStack.webSubFQDN],
+                [this.myEnver.authCallbackUrl, `https://${this.webHostingStack.webSubFQDN}/index.html?callback`],
+                [this.myEnver.logoutUrl, `https://${this.webHostingStack.webSubFQDN}/index.html?logout`]
             ])
         )
 
