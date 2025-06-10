@@ -115,8 +115,12 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         quarantineBucket.grantRead(statusHandler);
 
         // HTTP API Gateway with IAM authorization
-        const allowedOrigins = ['http://localhost:5173'];
-        allowedOrigins.push(`https://${props.webUiDomain}`);
+        // Allow any subdomain within the same zone for flexibility
+        const allowedOrigins = [
+            'http://localhost:5173', // Development
+            `https://*.${zoneName}`, // Any subdomain in the same zone (e.g., *.rag-ws1.root.ondemandenv.link)
+            `https://${zoneName}`,   // Root domain
+        ];
 
         this.httpApi = new apigatewayv2.HttpApi(this, 'DocumentIngestionApi', {
             apiName: 'RAG Document Ingestion Service',
@@ -207,6 +211,11 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         new cdk.CfnOutput(this, 'EventBusArn', {
             value: eventBus.eventBusArn,
             exportName: `${this.stackName}-EventBus`,
+        });
+
+        new cdk.CfnOutput(this, 'CorsAllowedOrigins', {
+            value: allowedOrigins.join(', '),
+            description: 'CORS allowed origins for the API Gateway',
         });
 
     }

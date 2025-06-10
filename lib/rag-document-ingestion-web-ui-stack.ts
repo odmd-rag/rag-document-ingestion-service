@@ -102,7 +102,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 
 ## Deployed Configuration
 
-- **Web Domain**: ${this.webHostingStack}
+- **Web Domain**: ${this.webHostingStack.webSubFQDN}
 - **API Endpoint**: https://${this.mainStack.apiDomain}
 - **Identity Pool ID**: ${this.authStack.identityPool.ref}
 - **Region**: ${this.region}
@@ -124,7 +124,7 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 Users must be added to the **"odmd-rag-uploader"** group in Cognito to upload documents.
 
 ### Testing
-1. Visit: https://${this.webHostingStack}
+1. Visit: https://${this.webHostingStack.webSubFQDN}
 2. Sign in with Google (via user-auth service)
 3. Upload a test document
 4. Monitor status in the UI
@@ -180,13 +180,18 @@ This web UI integrates with the RAG system through:
 
         // Output important URLs and IDs
         new cdk.CfnOutput(this, 'WebUIURL', {
-            value: `https://${this.webHostingStack}`,
+            value: `https://${this.webHostingStack.webSubFQDN}`,
             description: 'URL of the deployed web UI',
         });
 
         new cdk.CfnOutput(this, 'ConfigStatus', {
             value: `✅ Fully configured via OndemandEnv contracts - Google Client ID: ${clientId}`,
             description: 'Configuration automatically completed',
+        });
+
+        new cdk.CfnOutput(this, 'ConfiguredApiEndpoint', {
+            value: `https://${this.mainStack.apiDomain}`,
+            description: 'API endpoint configured in web UI',
         });
     }
 } 
