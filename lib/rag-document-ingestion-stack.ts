@@ -134,7 +134,6 @@ export class RagDocumentIngestionStack extends cdk.Stack {
                     'Content-Type',
                     'X-Amz-Date',
                     'X-Amz-Target',
-                    'authorization',
                     'Authorization', 
                     'X-Api-Key',
                     'X-Amz-Security-Token',
