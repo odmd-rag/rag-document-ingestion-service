@@ -15,7 +15,7 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
 
         // Import the API Gateway ARN from the main stack
         const mainStackName = myEnver.getRevStackNames()[0];
-        const apiGatewayArn = cdk.Fn.importValue(`${mainStackName}-ApiGatewayArn`);
+        const arnForExecuteApi = cdk.Fn.importValue(`${mainStackName}-arnForExecuteApi`);
 
         // Get clientId and providerName from user auth service
         // These are populated through contract wiring with the user auth service
@@ -63,7 +63,8 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
                                 'execute-api:Invoke'
                             ],
                             resources: [
-                                apiGatewayArn
+                                // The imported ARN is already in execute-api format with account ID
+                                arnForExecuteApi
                             ]
                         })
                     ]
@@ -105,7 +106,7 @@ export class RagDocumentIngestionAuthStack extends cdk.Stack {
                         'execute-api:Invoke'
                     ],
                     resources: [
-                        apiGatewayArn
+                        arnForExecuteApi
                     ]
                 }),
                 new iam.PolicyStatement({

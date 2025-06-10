@@ -227,7 +227,14 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         new cdk.CfnOutput(this, 'ApiGatewayArn', {
             value: `arn:aws:execute-api:${this.region}:${this.account}:${this.httpApi.httpApiId}/*`,
             exportName: `${this.stackName}-ApiGatewayArn`,
-            description: 'ARN pattern for the RAG Document Ingestion API Gateway',
+            description: 'tobe delete',
+        });
+
+        new cdk.CfnOutput(this, 'arnForExecuteApi', {
+            // value: `arn:aws:execute-api:${this.region}:${this.account}:${this.httpApi.httpApiId}/*/*`,
+            value: this.httpApi.arnForExecuteApi(),
+            exportName: `${this.stackName}-arnForExecuteApi`,
+            description: 'ARN pattern for the RAG Document Ingestion HTTP API Gateway (includes $default stage)',
         });
 
         new cdk.CfnOutput(this, 'EventBusArn', {
