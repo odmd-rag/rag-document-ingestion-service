@@ -46,7 +46,7 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
 
         this.bucket.grantRead(new ServicePrincipal('cloudfront.amazonaws.com'));
 
-        const webSubdomain = 'rag-docs';
+        const webSubdomain = 'rag-upload';
         this.webSubFQDN = webSubdomain + '.' + this.zoneName;
 
         const origin = S3BucketOrigin.withOriginAccessControl(this.bucket);

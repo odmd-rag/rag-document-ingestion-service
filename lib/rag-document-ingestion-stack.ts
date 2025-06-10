@@ -117,18 +117,11 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // HTTP API Gateway with IAM authorization
         const allowedOrigins = ['http://localhost:5173'];
         allowedOrigins.push(`https://${props.webUiDomain}`);
-        // Temporarily add direct API Gateway URL for testing
-        allowedOrigins.push(`https://${this.httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`);
-        
-        // Output the CORS configuration for debugging
-        new cdk.CfnOutput(this, 'CorsAllowedOrigins', {
-            value: allowedOrigins.join(', '),
-            description: 'CORS allowed origins for API Gateway',
-        });
 
         this.httpApi = new apigatewayv2.HttpApi(this, 'DocumentIngestionApi', {
             apiName: 'RAG Document Ingestion Service',
             description: 'HTTP API for RAG document ingestion operations with IAM authentication',
+            defaultAuthorizer: new HttpIamAuthorizer(),
             corsPreflight: {
                 allowOrigins: allowedOrigins,
                 allowMethods: [apigatewayv2.CorsHttpMethod.GET, apigatewayv2.CorsHttpMethod.POST, apigatewayv2.CorsHttpMethod.PUT, apigatewayv2.CorsHttpMethod.DELETE, apigatewayv2.CorsHttpMethod.OPTIONS],
@@ -154,23 +147,26 @@ export class RagDocumentIngestionStack extends cdk.Stack {
                 exposeHeaders: ['Date', 'X-Amzn-ErrorType'],
                 maxAge: cdk.Duration.hours(1),
             },
+            
         });
 
-        // API endpoints with IAM authentication using HttpIamAuthorizer
-        const iamAuthorizer = new HttpIamAuthorizer();
-
+        // API endpoints - will use default IAM authorizer
         this.httpApi.addRoutes({
             path: '/upload',
             methods: [apigatewayv2.HttpMethod.POST],
             integration: new apigatewayv2Integrations.HttpLambdaIntegration('UploadIntegration', uploadUrlHandler),
-            authorizer: iamAuthorizer,
         });
 
         this.httpApi.addRoutes({
             path: '/status/{documentId}',
             methods: [apigatewayv2.HttpMethod.GET],
             integration: new apigatewayv2Integrations.HttpLambdaIntegration('StatusIntegration', statusHandler),
-            authorizer: iamAuthorizer,
+        });
+
+        // Output the CORS configuration for debugging (after API is created)
+        new cdk.CfnOutput(this, 'CorsAllowedOrigins', {
+            value: allowedOrigins.join(', '),
+            description: 'CORS allowed origins for API Gateway',
         });
 
         // Set up custom domain for API Gateway

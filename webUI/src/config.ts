@@ -54,5 +54,8 @@ export async function loadConfig(): Promise<Config> {
 
 // Get current configuration (use after calling loadConfig)
 export function getConfig(): Config {
-    return runtimeConfig!;
+    if (!runtimeConfig) {
+        throw new Error('Configuration not loaded yet. Call loadConfig() first.');
+    }
+    return runtimeConfig;
 }

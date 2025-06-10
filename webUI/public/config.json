@@ -1,0 +1,19 @@
+{
+  "aws": {
+    "region": "us-east-2",
+    "identityPoolId": "us-east-2:b966b4b4-4c54-494a-9e7d-eb41bd0b36d6",
+    "apiEndpoint": "https://rag-api.rag-ws1.root.ondemandenv.link"
+  },
+  "google": {
+    "clientId": "2pc2125m36vfh355ug3vv0jkm3"
+  },
+  "cognito": {
+    "providerName": "cognito-idp.us-east-2.amazonaws.com/us-east-2_SiTU4IcjD",
+    "userPoolDomain": "rag-ws1.root.ondemandenv.link"
+  },
+  "deployment": {
+    "timestamp": "2025-06-10T11:52:04.776Z",
+    "version": "1.0.0",
+    "webDomain": "rag-upload.rag-ws1.root.ondemandenv.link"
+  }
+}

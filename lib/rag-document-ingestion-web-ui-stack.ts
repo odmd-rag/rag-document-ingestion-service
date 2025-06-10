@@ -59,7 +59,6 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
                 clientId: clientId, // Using Google Client ID from auth service contracts
             },
             cognito: {
-                userPoolId: clientId, // This is the client ID from user-auth service contracts
                 providerName: providerName, // This is the provider name like "cognito-idp.region.amazonaws.com/userPoolId"
                 userPoolDomain: this.webHostingStack.zoneName, // user pool domain
             },

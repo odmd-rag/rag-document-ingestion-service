@@ -1,5 +1,6 @@
 import {CognitoIdentityClient} from '@aws-sdk/client-cognito-identity';
 import {fromCognitoIdentityPool} from '@aws-sdk/credential-provider-cognito-identity';
+import {STSClient, GetCallerIdentityCommand} from '@aws-sdk/client-sts';
 import type {AwsCredentialIdentity} from '@aws-sdk/types';
 import {type Config, getConfig} from './config.js';
 
@@ -25,14 +26,25 @@ export class AuthService {
     }
 
     private async initialize(): Promise<void> {
-        this.config = await getConfig();
+        this.config = getConfig();
+
+        const missingConfig = [];
+        if (!this.config.aws?.region) missingConfig.push('aws.region');
+        if (!this.config.aws?.identityPoolId) missingConfig.push('aws.identityPoolId');
+        if (!this.config.google?.clientId) missingConfig.push('google.clientId');
+        if (!this.config.cognito?.providerName) missingConfig.push('cognito.providerName');
+        
+        if (missingConfig.length > 0) {
+            throw new Error(`Missing critical configuration: ${missingConfig.join(', ')}`);
+        }
+        
         console.log('🔧 AuthService initialized with config:', {
             region: this.config.aws.region,
             identityPoolId: this.config.aws.identityPoolId,
             apiEndpoint: this.config.aws.apiEndpoint,
             providerName: this.config.cognito.providerName,
-            userPoolId: this.config.cognito.userPoolId,
-            userPoolDomain: this.config.cognito.userPoolDomain
+            userPoolDomain: this.config.cognito.userPoolDomain,
+            googleClientId: this.config.google.clientId
         });
     }
 
@@ -55,7 +67,7 @@ export class AuthService {
 
         const params = new URLSearchParams({
             response_type: 'code',
-            client_id: this.config.cognito.userPoolId, // This is actually the client ID from user-auth service
+            client_id: this.config.google.clientId, // Use the actual client ID, not userPoolId
             redirect_uri: this.config.redirectUri,
             state,
             identity_provider: 'Google'
@@ -91,7 +103,7 @@ export class AuthService {
             },
             body: new URLSearchParams({
                 grant_type: 'authorization_code',
-                client_id: this.config.cognito.userPoolId, // This is the client ID from user-auth service
+                client_id: this.config.google.clientId, // Use the actual client ID, not userPoolId
                 redirect_uri: this.config.redirectUri,
                 code
             })
@@ -107,14 +119,20 @@ export class AuthService {
 
         // Parse user info from ID token
         const payload = JSON.parse(atob(idToken.split('.')[1]));
+        console.log('🔍 ID Token payload:', payload);
+        
         this.userInfo = {
             name: payload.name,
             email: payload.email,
             groups: payload['cognito:groups'] || []
         };
 
+        console.log('🔍 Extracted user info:', this.userInfo);
+
         // Check if user has required group membership for RAG uploads
         if (!this.userInfo.groups?.includes('odmd-rag-uploader')) {
+            console.error('❌ User groups:', this.userInfo.groups);
+            console.error('❌ Required group: odmd-rag-uploader');
             throw new Error('Access denied: You must be a member of the "odmd-rag-uploader" group to upload documents.');
         }
 
@@ -152,6 +170,25 @@ export class AuthService {
             })();
 
             console.log('✅ AWS credentials refreshed successfully');
+            console.log('🔍 Provider name being used:', this.config.cognito.providerName);
+            console.log('🔍 Identity Pool ID:', this.config.aws.identityPoolId);
+            console.log('🔍 User groups:', this.userInfo?.groups);
+
+            // Debug: Check who these credentials belong to using GetCallerIdentity
+            try {
+                const stsClient = new STSClient({
+                    region: this.config.aws.region,
+                    credentials: this._credentials
+                });
+                const callerIdentity = await stsClient.send(new GetCallerIdentityCommand({}));
+                console.log('🔍 Credential identity:', {
+                    account: callerIdentity.Account,
+                    arn: callerIdentity.Arn,
+                    userId: callerIdentity.UserId
+                });
+            } catch (error) {
+                console.error('❌ Failed to get caller identity:', error);
+            }
 
             // Schedule next refresh (20 minutes)
             if (this.tokenRefreshTimeout) {
