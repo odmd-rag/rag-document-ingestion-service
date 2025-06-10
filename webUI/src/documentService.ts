@@ -1,8 +1,7 @@
 import type {AwsCredentialIdentity} from '@aws-sdk/types';
 import {getConfig} from './config.js';
-import {HttpRequest} from '@aws-sdk/protocol-http';
 import {SignatureV4} from '@aws-sdk/signature-v4';
-import {Sha256} from '@aws-crypto/sha256-browser';
+import {Sha256} from '@aws-crypto/sha256-js';
 
 export interface UploadResponse {
     uploadUrl: string;
@@ -144,39 +143,43 @@ export class DocumentService {
         const config = getConfig();
         const url = new URL(`${config.aws.apiEndpoint.replace(/\/$/, '')}${path}`);
 
-        // Create HTTP request for signing
-        const request = new HttpRequest({
+        // Create simple request object like the working GraphQL client
+        const request = {
             method: options.method || 'GET',
-            protocol: url.protocol,
+            protocol: 'https:',
             hostname: url.hostname,
-            port: url.port ? parseInt(url.port) : undefined,
             path: url.pathname + url.search,
             headers: {
                 'Content-Type': 'application/json',
-                'Host': url.hostname,
+                'host': url.hostname,
                 ...(options.headers as Record<string, string>),
             },
-            body: options.body,
-        });
+            body: options.body || '',
+        };
 
-        // Sign the request using AWS Signature V4
+        // Sign the request using AWS Signature V4 (same pattern as working GraphQL client)
         const signer = new SignatureV4({
-            credentials: {
-                accessKeyId: this.credentials.accessKeyId,
-                secretAccessKey: this.credentials.secretAccessKey,
-                sessionToken: this.credentials.sessionToken,
-            },
+            credentials: this.credentials,
             region: config.aws.region,
             service: 'execute-api',
             sha256: Sha256,
         });
 
         const signedRequest = await signer.sign(request);
+        console.log('signedRequest:', JSON.stringify({
+            method: signedRequest.method,
+            hostname: signedRequest.hostname,
+            query: signedRequest.query,
+            headers: signedRequest.headers,
+            body: signedRequest.body,
+            protocol: signedRequest.protocol,
+            path: signedRequest.path
+        }, null, 2));
 
         // Convert signed request back to fetch options
         return fetch(url.toString(), {
             method: signedRequest.method,
-            headers: signedRequest.headers,
+            headers: signedRequest.headers as Record<string, string>,
             body: signedRequest.body,
         });
     }
