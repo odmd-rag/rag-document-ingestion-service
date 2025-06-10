@@ -117,6 +117,8 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // HTTP API Gateway with IAM authorization
         const allowedOrigins = ['http://localhost:5173'];
         allowedOrigins.push(`https://${props.webUiDomain}`);
+        // Temporarily add direct API Gateway URL for testing
+        allowedOrigins.push(`https://${this.httpApi.httpApiId}.execute-api.${this.region}.amazonaws.com`);
         
         // Output the CORS configuration for debugging
         new cdk.CfnOutput(this, 'CorsAllowedOrigins', {
