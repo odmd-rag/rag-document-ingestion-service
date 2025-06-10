@@ -115,20 +115,43 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         quarantineBucket.grantRead(statusHandler);
 
         // HTTP API Gateway with IAM authorization
-        // Allow any subdomain within the same zone for flexibility
-        const allowedOrigins = [
-            'http://localhost:5173', // Development
-            `https://*.${zoneName}`, // Any subdomain in the same zone (e.g., *.rag-ws1.root.ondemandenv.link)
-            `https://${zoneName}`,   // Root domain
-        ];
+        const allowedOrigins = ['http://localhost:5173'];
+        allowedOrigins.push(`https://${props.webUiDomain}`);
+        
+        // Output the CORS configuration for debugging
+        new cdk.CfnOutput(this, 'CorsAllowedOrigins', {
+            value: allowedOrigins.join(', '),
+            description: 'CORS allowed origins for API Gateway',
+        });
 
         this.httpApi = new apigatewayv2.HttpApi(this, 'DocumentIngestionApi', {
             apiName: 'RAG Document Ingestion Service',
             description: 'HTTP API for RAG document ingestion operations with IAM authentication',
             corsPreflight: {
                 allowOrigins: allowedOrigins,
-                allowMethods: [apigatewayv2.CorsHttpMethod.GET, apigatewayv2.CorsHttpMethod.POST, apigatewayv2.CorsHttpMethod.OPTIONS],
-                allowHeaders: ['Content-Type', 'X-Amz-Date', 'Authorization', 'X-Api-Key', 'X-Amz-Security-Token', 'X-Amz-User-Agent'],
+                allowMethods: [apigatewayv2.CorsHttpMethod.GET, apigatewayv2.CorsHttpMethod.POST, apigatewayv2.CorsHttpMethod.PUT, apigatewayv2.CorsHttpMethod.DELETE, apigatewayv2.CorsHttpMethod.OPTIONS],
+                allowHeaders: [
+                    'Content-Type',
+                    'X-Amz-Date',
+                    'X-Amz-Target',
+                    'authorization',
+                    'Authorization', 
+                    'X-Api-Key',
+                    'X-Amz-Security-Token',
+                    'X-Amz-User-Agent',
+                    'X-Amz-Content-Sha256',
+                    'X-Amz-Signature',
+                    'X-Amz-SignedHeaders',
+                    'X-Amz-Algorithm',
+                    'X-Amz-Credential',
+                    'X-Amz-Expires',
+                    'Host',
+                    'Cache-Control',
+                    'Pragma'
+                ],
+                allowCredentials: false,
+                exposeHeaders: ['Date', 'X-Amzn-ErrorType'],
+                maxAge: cdk.Duration.hours(1),
             },
         });
 
@@ -213,9 +236,15 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             exportName: `${this.stackName}-EventBus`,
         });
 
-        new cdk.CfnOutput(this, 'CorsAllowedOrigins', {
-            value: allowedOrigins.join(', '),
-            description: 'CORS allowed origins for the API Gateway',
+        // Output the actual API Gateway ID for troubleshooting
+        new cdk.CfnOutput(this, 'HttpApiId', {
+            value: this.httpApi.httpApiId,
+            description: 'HTTP API Gateway ID',
+        });
+
+        new cdk.CfnOutput(this, 'ApiDomainNameDns', {
+            value: domainName.regionalDomainName,
+            description: 'Regional domain name for API Gateway custom domain',
         });
 
     }
