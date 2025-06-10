@@ -151,20 +151,13 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             zoneName: zoneName,
         });
 
-        // Certificate must be in us-east-1 for API Gateway custom domains
-        let certStack = this.region === 'us-east-1' ? this : new Stack(this, 'apiCertStack', {
-            crossRegionReferences: true,
-            env: {region: 'us-east-1', account: this.account}
-        });
-
-        const certificate = new Certificate(certStack, 'ApiCertificate', {
-            domainName: this.apiDomain,
-            validation: CertificateValidation.fromDns(hostedZone),
-        });
 
         const domainName = new apigatewayv2.DomainName(this, 'ApiDomainName', {
             domainName: this.apiDomain,
-            certificate: certificate,
+            certificate: new Certificate(this, 'ApiCertificate', {
+                domainName: this.apiDomain,
+                validation: CertificateValidation.fromDns(hostedZone),
+            }),
         });
 
         new apigatewayv2.ApiMapping(this, 'ApiMapping', {
