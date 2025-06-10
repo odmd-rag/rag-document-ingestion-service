@@ -1,14 +1,10 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { CognitoIdentityClient, GetIdCommand, GetCredentialsForIdentityCommand } from '@aws-sdk/client-cognito-identity';
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
-const cognitoClient = new CognitoIdentityClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
 const DOCUMENT_BUCKET = process.env.DOCUMENT_BUCKET!;
-const IDENTITY_POOL_ID = process.env.IDENTITY_POOL_ID!;
-const COGNITO_PROVIDER_NAME = process.env.COGNITO_PROVIDER_NAME!;
 
 interface UploadRequest {
     fileName: string;
@@ -32,47 +28,22 @@ const SUPPORTED_MIME_TYPES = [
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 /**
- * Validates the authentication token and gets user identity
+ * Extracts user identity from API Gateway request context
  */
-async function validateAndGetUserIdentity(authToken: string): Promise<string> {
-    try {
-        // Extract the ID token from the Authorization header
-        const token = authToken.replace('Bearer ', '');
-        
-        // For federated identity, we need to get the identity ID from Cognito
-        // This assumes the token is a valid JWT from the federated provider
-        const getIdParams = {
-            IdentityPoolId: IDENTITY_POOL_ID,
-            Logins: {
-                [COGNITO_PROVIDER_NAME]: token
-            }
-        };
+function getUserIdentityFromContext(event: APIGatewayProxyEvent): string {
+    // Try different possible locations for user identity in the request context
+    const userIdentity = 
+        event.requestContext.authorizer?.claims?.sub ||  // Cognito User Pool sub claim
+        event.requestContext.authorizer?.principalId ||   // Custom authorizer
+        event.requestContext.identity?.cognitoIdentityId ||  // Cognito Identity Pool
+        event.requestContext.authorizer?.sub ||           // Alternative location for sub
+        event.requestContext.identity?.userArn?.split('/').pop(); // IAM user
 
-        const getIdResult = await cognitoClient.send(new GetIdCommand(getIdParams));
-        
-        if (!getIdResult.IdentityId) {
-            throw new Error('Failed to get identity ID');
-        }
-
-        // Verify that the identity can get credentials
-        const getCredentialsParams = {
-            IdentityId: getIdResult.IdentityId,
-            Logins: {
-                [COGNITO_PROVIDER_NAME]: token
-            }
-        };
-
-        const credentialsResult = await cognitoClient.send(new GetCredentialsForIdentityCommand(getCredentialsParams));
-        
-        if (!credentialsResult.Credentials) {
-            throw new Error('Failed to get credentials for identity');
-        }
-
-        return getIdResult.IdentityId;
-    } catch (error) {
-        console.error('Authentication error:', error);
-        throw new Error('Invalid authentication token');
+    if (!userIdentity) {
+        throw new Error('User identity not found in request context');
     }
+
+    return userIdentity;
 }
 
 /**
@@ -116,27 +87,10 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     console.log('Upload URL request:', JSON.stringify(event, null, 2));
 
     try {
-        // Validate authentication
-        const authHeader = event.headers.Authorization || event.headers.authorization;
-        if (!authHeader) {
-            return {
-                statusCode: 401,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
-                },
-                body: JSON.stringify({
-                    error: 'Authentication required',
-                    message: 'Authorization header is missing'
-                })
-            };
-        }
-
-        // Validate user identity with Cognito
+        // Extract user identity from API Gateway request context
         let userIdentityId: string;
         try {
-            userIdentityId = await validateAndGetUserIdentity(authHeader);
+            userIdentityId = getUserIdentityFromContext(event);
         } catch (error) {
             return {
                 statusCode: 401,
@@ -147,7 +101,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
                 },
                 body: JSON.stringify({
                     error: 'Authentication failed',
-                    message: error instanceof Error ? error.message : 'Invalid authentication token'
+                    message: error instanceof Error ? error.message : 'User identity not found'
                 })
             };
         }
