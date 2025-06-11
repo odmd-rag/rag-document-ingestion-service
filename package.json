@@ -18,6 +18,8 @@
     "cdk-ls": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev cdk ls --show-dependencies --profile odmd-rag-ws1",
     "cdk-synth": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev cdk synth --all --profile odmd-rag-ws1",
     "cdk-deploy": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev cdk deploy --all",
+    "generate:types": "bash .scripts/generate-schema-types.sh",
+    "prebuild": "npm run generate:types",
     "package": "npm run build && npm pack",
     "start": "node dist/app.js"
   },

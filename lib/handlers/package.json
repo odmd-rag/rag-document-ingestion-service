@@ -16,10 +16,11 @@
     "lint:fix": "eslint src --ext .ts --fix"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.400.0",
-    "@aws-sdk/s3-request-presigner": "^3.400.0", 
-    "@aws-sdk/client-cognito-identity": "^3.400.0",
-    "@aws-sdk/client-eventbridge": "^3.400.0",
+    "@aws-sdk/client-s3": "^3.826.0",
+    "@aws-sdk/s3-request-presigner": "^3.826.0",
+    "@aws-sdk/client-cognito-identity": "^3.826.0",
+    "@aws-sdk/client-eventbridge": "^3.826.0",
+    "@aws-sdk/client-schemas": "^3.826.0",
     "mime-types": "^2.1.35"
   },
   "devDependencies": {

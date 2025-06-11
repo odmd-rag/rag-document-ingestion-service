@@ -1,6 +1,8 @@
 import { S3Event, Context } from 'aws-lambda';
 import { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import { SchemasClient, DescribeSchemaCommand } from '@aws-sdk/client-schemas';
+import Ajv from 'ajv';
 import * as mime from 'mime-types';
 import { randomUUID } from 'crypto';
 import { 
@@ -14,11 +16,16 @@ import {
 
 const s3Client = new S3Client({});
 const eventBridgeClient = new EventBridgeClient({});
+const schemasClient = new SchemasClient({});
 
 // Configuration  
 const QUARANTINE_BUCKET = process.env.QUARANTINE_BUCKET!;
 const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME!;
 const EVENT_SOURCE = process.env.EVENT_SOURCE!;
+const SCHEMA_REGISTRY_NAME = process.env.SCHEMA_REGISTRY_NAME!;
+
+// Initialize AJV for schema validation
+const ajv = new Ajv();
 
 // Validation configuration
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -31,6 +38,54 @@ const ALLOWED_MIME_TYPES = [
     'text/html',
     'application/rtf'
 ];
+
+// Schema validation cache
+const schemaCache = new Map<string, any>();
+
+/**
+ * Validates an event payload against its registered EventBridge schema
+ */
+async function validateEventAgainstSchema(eventDetail: any, schemaName: string): Promise<{ isValid: boolean; errors?: any[] }> {
+    try {
+        // Check cache first
+        let schemaDefinition = schemaCache.get(schemaName);
+        
+        if (!schemaDefinition) {
+            // Fetch schema from EventBridge Schema Registry
+            const describeCommand = new DescribeSchemaCommand({
+                RegistryName: SCHEMA_REGISTRY_NAME,
+                SchemaName: schemaName
+            });
+            
+            const schemaResponse = await schemasClient.send(describeCommand);
+            if (!schemaResponse.Content) {
+                console.warn(`Schema ${schemaName} not found in registry`);
+                return { isValid: true }; // Graceful degradation
+            }
+            
+            schemaDefinition = JSON.parse(schemaResponse.Content);
+            schemaCache.set(schemaName, schemaDefinition);
+            console.log(`Cached schema ${schemaName} from registry`);
+        }
+        
+        // Validate using AJV
+        const validate = ajv.compile(schemaDefinition);
+        const isValid = validate(eventDetail);
+        
+        if (!isValid) {
+            console.error(`Schema validation failed for ${schemaName}:`, validate.errors);
+            return { isValid: false, errors: validate.errors as any[] };
+        }
+        
+        console.log(`Event validated successfully against schema ${schemaName}`);
+        return { isValid: true };
+        
+    } catch (error) {
+        console.error(`Schema validation error for ${schemaName}:`, error);
+        // Graceful degradation - don't fail the entire process
+        return { isValid: true };
+    }
+}
 
 export async function handler(event: S3Event, _context: Context): Promise<void> {
     console.log('Validation handler invoked:', JSON.stringify(event, null, 2));
@@ -172,6 +227,13 @@ async function publishDocumentValidatedEvent(bucket: string, key: string, valida
             uploadedBy: 'system' // Could be extracted from S3 metadata if available
         }
     };
+
+    // Validate event against schema before publishing
+    const schemaValidation = await validateEventAgainstSchema(detail, 'DocumentValidated');
+    if (!schemaValidation.isValid) {
+        console.error('Event validation failed:', schemaValidation.errors);
+        throw new Error(`Event does not conform to schema: ${JSON.stringify(schemaValidation.errors)}`);
+    }
 
     // Get AWS context for account and region
     const account = process.env.AWS_ACCOUNT_ID || 'unknown';
