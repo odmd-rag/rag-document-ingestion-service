@@ -1,0 +1,91 @@
+{
+  "event": {
+    "version": "2.0",
+    "routeKey": "POST /upload",
+    "rawPath": "/upload",
+    "rawQueryString": "",
+    "headers": {
+      "accept": "*/*",
+      "accept-encoding": "gzip, deflate, br, zstd",
+      "accept-language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+      "authorization": "AWS4-HMAC-SHA256 Credential=ASIAVK3RFOEUDMBZSXAM/20250611/us-east-2/execute-api/aws4_request, SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token, Signature=53ca8aae298892aaea14db8942142f57558504e63df8971195315da8cf135796",
+      "cache-control": "no-cache",
+      "content-length": "80",
+      "content-type": "application/json",
+      "host": "rag-api.rag-ws1.root.ondemandenv.link",
+      "origin": "https://rag-upload.rag-ws1.root.ondemandenv.link",
+      "pragma": "no-cache",
+      "priority": "u=1, i",
+      "referer": "https://rag-upload.rag-ws1.root.ondemandenv.link/",
+      "sec-ch-ua": "\"Google Chrome\";v=\"137\", \"Chromium\";v=\"137\", \"Not/A)Brand\";v=\"24\"",
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": "\"Windows\"",
+      "sec-fetch-dest": "empty",
+      "sec-fetch-mode": "cors",
+      "sec-fetch-site": "same-site",
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+      "x-amz-content-sha256": "45939a7b4fa02e721b9bdd1a3e50b1c86f12e8c0b3d56007b0c2998f3b32dc79",
+      "x-amz-date": "20250611T224309Z",
+      "x-amz-security-token": "IQoJb3JpZ2luX2VjEAcaCXVzLWVhc3QtMiJIMEYCIQCmYJs6Aycnr4Qq04rrmTgmXRPfO4ssHfM9Ukzhbezx3wIhAPwMC0tY6gtYHsQ0Ciumb5YgVMd+4vytGD6o9jOTydL0Ks0ECOD//////////wEQABoMMzY2OTIwMTY3NzIwIgzXY0VepbgtmIA+QTYqoQRE+m+s1colteSZlQF+N2vjHlh6rb1m9GHRpzTEs74RFKR99y3EAoQDWjuUZ3OTwCBgxpw/79vwz2uBNB9E+rdWgnB7PDEFUfY3nBcn4ZLL+/ftCuvB2PgERQldvxf/4sK5IGmb0+ftUlf3kbws5WZs79KZ8s+s1D9FPGVJTuzrw3Wezqm+2Z5c3A1XFhQAz0gaxl7rGkFasdE21YRPAVrroj4mXkJmTUl25dFUDzd+DJ6pm2j1nhje9rfwWq8wXmLA25KLUIQONx+AJuXoGGKan66ykei2UinY+B6C77dPJviNffrVLlShmjEa0Jz4A7gOvVKb6Sl+PrWYQkztufZVEfONHzZ/omu7l96e4nKjiWn9undcwT53A7lmsrH/rNE5kvMrwAYOdyPgcT7A8OLvjgsv8QlDhvmZr1T6q4altufa6jpBQNlKAdwPmFo+WB0WDSbmYoribVKjIZ+JPIb6d/Gf2B3q4Zks8SE/74Xl5Y7JneloBlnqr5yfMn4s55ivH2Wzeol5V4c8stJjHvISRin9aM77yphZM0cPoMUIs44rwnZb9c89sSk6LCl9iic0FnPhFhs4E7PDhUyFEnH5U86TPMkDWcjLQZpRRGbljsEvs8SOe03yO91QPsYfyfKG5MKg4zbEdl7ReII2T5kDpcUSwZi/LeHL9wO31cZItd/chZ+w5GUBm/gCcHsqgjXfGsnGNkESFDuy3kCZdkRLcTDzjKjCBjqEAveQyRqxMM/bkUjZ12j4AgFTN8xZxZpsE0QbOA/qK4FRAzYcGU0yEDiAzsJdGOFC4r9b8z9RlRNYupDz9QJyNcs/jqyZkZkeeEVD1UTjkmPfv1+yKcAuYPF7n7XNd/Tp9djr7h9PSPd+xpNzZ5sViTY6KNuKFLjkNzfq53tmdJvJtBRIE51J2uER1Yd08am1Gaph27NxuLU6eR7BC0Ptwsq779gAn/vBDuX/F7BVqJScGeaSM/JIaEDPvnae3w59MR+TpWJ/CzVJR6slW/LLP40+rLGpayj9zvZhZ8QHJBnQJUsVWuW5UzDjJOBGqSCPtgNWVhxu9Q7hex3aeCGWWMYFrcE5",
+      "x-amzn-trace-id": "Root=1-684a067d-28de545901d5c47442e7cb08",
+      "x-forwarded-for": "68.193.123.4",
+      "x-forwarded-port": "443",
+      "x-forwarded-proto": "https"
+    },
+    "requestContext": {
+      "accountId": "366920167720",
+      "apiId": "46x5ffbawi",
+      "authorizer": {
+        "iam": {
+          "accessKey": "ASIAVK3RFOEUDMBZSXAM",
+          "accountId": "366920167720",
+          "callerId": "AROAVK3RFOEUBU2XP72VE:CognitoIdentityCredentials",
+          "cognitoIdentity": {
+            "amr": [
+              "authenticated",
+              "cognito-idp.us-east-2.amazonaws.com/us-east-2_SiTU4IcjD",
+              "cognito-idp.us-east-2.amazonaws.com/us-east-2_SiTU4IcjD:CognitoSignIn:411b45f0-b0c1-700b-9244-959db9bbc961"
+            ],
+            "identityId": "us-east-2:556e2571-2812-c36d-6f0f-194696e4d674",
+            "identityPoolId": "us-east-2:b966b4b4-4c54-494a-9e7d-eb41bd0b36d6"
+          },
+          "principalOrgId": "aws:PrincipalOrgID",
+          "userArn": "arn:aws:sts::366920167720:assumed-role/ragDocumentIngestion-dev--DocumentUploadRole76486D8-O1ZKdx83FFge/CognitoIdentityCredentials",
+          "userId": "AROAVK3RFOEUBU2XP72VE:CognitoIdentityCredentials"
+        }
+      },
+      "domainName": "rag-api.rag-ws1.root.ondemandenv.link",
+      "domainPrefix": "rag-api",
+      "http": {
+        "method": "POST",
+        "path": "/upload",
+        "protocol": "HTTP/1.1",
+        "sourceIp": "68.193.123.4",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
+      },
+      "requestId": "MBXzrj0gCYcEJsA=",
+      "routeKey": "POST /upload",
+      "stage": "$default",
+      "time": "11/Jun/2025:22:43:09 +0000",
+      "timeEpoch": 1749681789535
+    },
+    "body": "{\"fileName\":\"Full Stack - Community Integrity.pdf\",\"fileType\":\"application/pdf\"}",
+    "isBase64Encoded": false
+  },
+  "context": {
+    "functionName": "rag-document-upload-url-handler",
+    "functionVersion": "$LATEST", 
+    "invokedFunctionArn": "arn:aws:lambda:us-west-1:123456789012:function:rag-document-upload-url-handler",
+    "memoryLimitInMB": "256",
+    "awsRequestId": "8f507cfc-xmpl-4697-b07a-ac58fc914c95",
+    "logGroupName": "/aws/lambda/rag-document-upload-url-handler",
+    "logStreamName": "2024/01/15/[$LATEST]b47c207atesting",
+    "getRemainingTimeInMillis": 30000
+  },
+  "env": {
+    "UPLOAD_BUCKET": "rag-document-upload-bucket-dev",
+    "USER_POOL_ID": "us-west-1_ABC123DEF",
+    "CORS_ORIGIN": "https://rag-app.example.com",
+    "AWS_REGION": "us-west-1"
+  }
+} 

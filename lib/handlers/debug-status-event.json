@@ -1,0 +1,76 @@
+{
+  "event": {
+    "resource": "/status/{documentId}",
+    "path": "/status/doc-12345", 
+    "httpMethod": "GET",
+    "headers": {
+      "Accept": "application/json",
+      "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "Content-Type": "application/json",
+      "Host": "api.example.com",
+      "User-Agent": "Mozilla/5.0 (compatible; testing)",
+      "X-Forwarded-For": "192.168.1.100",
+      "X-Forwarded-Port": "443",
+      "X-Forwarded-Proto": "https"
+    },
+    "multiValueHeaders": {},
+    "queryStringParameters": {
+      "includeDetails": "true"
+    },
+    "multiValueQueryStringParameters": {
+      "includeDetails": ["true"]
+    },
+    "pathParameters": {
+      "documentId": "doc-12345"
+    },
+    "stageVariables": null,
+    "requestContext": {
+      "resourceId": "def456",
+      "resourcePath": "/status/{documentId}",
+      "httpMethod": "GET",
+      "extendedRequestId": "request-id-status",
+      "requestTime": "15/Jan/2024:10:35:00 +0000",
+      "path": "/dev/status/doc-12345",
+      "accountId": "123456789012",
+      "protocol": "HTTP/1.1",
+      "stage": "dev",
+      "domainPrefix": "api",
+      "requestTimeEpoch": 1705313700,
+      "requestId": "d7bf8bc7-8c72-11e6-9b42-94f813456789",
+      "identity": {
+        "cognitoIdentityPoolId": null,
+        "accountId": null,
+        "cognitoIdentityId": null,
+        "caller": null,
+        "sourceIp": "192.168.1.100",
+        "principalOrgId": null,
+        "accessKey": null,
+        "cognitoAuthenticationType": null,
+        "cognitoAuthenticationProvider": null,
+        "userArn": null,
+        "userAgent": "Mozilla/5.0 (compatible; testing)",
+        "user": null
+      },
+      "domainName": "api.example.com",
+      "apiId": "1234567890"
+    },
+    "body": null,
+    "isBase64Encoded": false
+  },
+  "context": {
+    "functionName": "rag-document-status-handler",
+    "functionVersion": "$LATEST", 
+    "invokedFunctionArn": "arn:aws:lambda:us-west-1:123456789012:function:rag-document-status-handler",
+    "memoryLimitInMB": "256",
+    "awsRequestId": "9f608efc-xmpl-4798-c08b-bd69fd925d96",
+    "logGroupName": "/aws/lambda/rag-document-status-handler",
+    "logStreamName": "2024/01/15/[$LATEST]c58d308btesting",
+    "getRemainingTimeInMillis": 30000
+  },
+  "env": {
+    "STATUS_TABLE_NAME": "rag-document-status-table-dev",
+    "USER_POOL_ID": "us-west-1_ABC123DEF",
+    "CORS_ORIGIN": "https://rag-app.example.com",
+    "AWS_REGION": "us-west-1"
+  }
+} 

@@ -1,0 +1,57 @@
+{
+  "event": {
+    "Records": [
+      {
+        "eventVersion": "2.1",
+        "eventSource": "aws:s3",
+        "awsRegion": "us-west-1",
+        "eventTime": "2024-01-15T10:30:00.000Z",
+        "eventName": "ObjectCreated:Put",
+        "userIdentity": {
+          "principalId": "AWS:AIDAII2EXAMPLE"
+        },
+        "requestParameters": {
+          "sourceIPAddress": "192.168.1.100"
+        },
+        "responseElements": {
+          "x-amz-request-id": "C3D13FE58DE4C810",
+          "x-amz-id-2": "FMyUVURIY8/IgAtTv8xRjskZQpcIZ9KG4V5Wp6S7S/JRWeUWerMUE5JgHvANOjpD"
+        },
+        "s3": {
+          "s3SchemaVersion": "1.0",
+          "configurationId": "testConfigRule",
+          "bucket": {
+            "name": "rag-document-upload-bucket-dev",
+            "ownerIdentity": {
+              "principalId": "A3I5XTEXAMAI3E"
+            },
+            "arn": "arn:aws:s3:::rag-document-upload-bucket-dev"
+          },
+          "object": {
+            "key": "documents/test-document.pdf",
+            "size": 1024000,
+            "eTag": "d41d8cd98f00b204e9800998ecf8427e",
+            "sequencer": "0A1B2C3D4E5F678901"
+          }
+        }
+      }
+    ]
+  },
+  "context": {
+    "functionName": "rag-document-validation-handler",
+    "functionVersion": "$LATEST",
+    "invokedFunctionArn": "arn:aws:lambda:us-west-1:123456789012:function:rag-document-validation-handler",
+    "memoryLimitInMB": "256",
+    "awsRequestId": "8f507cfc-xmpl-4697-b07a-ac58fc914c95",
+    "logGroupName": "/aws/lambda/rag-document-validation-handler",
+    "logStreamName": "2024/01/15/[$LATEST]b47c207atesting",
+    "getRemainingTimeInMillis": 30000
+  },
+  "env": {
+    "QUARANTINE_BUCKET": "rag-document-quarantine-bucket-dev",
+    "EVENT_BUS_NAME": "rag-document-processing-eventbus-dev",
+    "EVENT_SOURCE": "rag.document.ingestion",
+    "SCHEMA_REGISTRY_NAME": "rag-document-schema-registry-dev",
+    "AWS_REGION": "us-west-1"
+  }
+} 
