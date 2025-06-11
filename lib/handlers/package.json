@@ -21,7 +21,8 @@
     "@aws-sdk/client-cognito-identity": "^3.826.0",
     "@aws-sdk/client-eventbridge": "^3.826.0",
     "@aws-sdk/client-schemas": "^3.826.0",
-    "mime-types": "^2.1.35"
+    "mime-types": "^2.1.35",
+    "ajv": "^8.17.1"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.119",
