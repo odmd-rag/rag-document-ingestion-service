@@ -2,7 +2,8 @@
   "name": "@odmd-rag/document-ingestion",
   "version": "1.0.0",
   "description": "RAG Document Ingestion Service - OndemandEnv Platform",
-  "main": "dist/app.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "rag-document-ingestion": "bin/rag-document-ingestion.js"
   },

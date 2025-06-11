@@ -7,7 +7,6 @@ import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
 import {RagDocumentIngestionAuthStack} from './rag-document-ingestion-auth-stack';
 import {RagDocumentIngestionStack} from './rag-document-ingestion-stack';
 import {RagDocumentIngestionWebHostingStack} from "./rag-document-ingestion-web-hosting-stack";
-import {OdmdCrossRefProducer, OdmdShareOut} from "@ondemandenv/contracts-lib-base";
 
 export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 
@@ -169,13 +168,6 @@ This web UI integrates with the RAG system through:
                 resources: [this.targetBucket.arnForObjects('*')]
             })
         }).node.addDependency(webDeployment);
-
-        new OdmdShareOut(
-            this, new Map<OdmdCrossRefProducer<RagDocumentIngestionEnver>, any>([
-                [this.myEnver.authCallbackUrl, `https://${this.webHostingStack.webSubFQDN}/index.html?callback`],
-                [this.myEnver.logoutUrl, `https://${this.webHostingStack.webSubFQDN}/index.html?logout`]
-            ])
-        )
 
         // Output important URLs and IDs
         new cdk.CfnOutput(this, 'WebUIURL', {
