@@ -2,12 +2,20 @@ import { S3Event, Context } from 'aws-lambda';
 import { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import * as mime from 'mime-types';
+import { randomUUID } from 'crypto';
+import { 
+    DocumentValidatedDetail,
+    DocumentRejectedDetail, 
+    DocumentQuarantinedDetail,
+    createDocumentValidatedEvent,
+    createDocumentRejectedEvent,
+    createDocumentQuarantinedEvent
+} from './event-types';
 
 const s3Client = new S3Client({});
 const eventBridgeClient = new EventBridgeClient({});
 
-// Configuration
-const DOCUMENT_BUCKET = process.env.DOCUMENT_BUCKET!;
+// Configuration  
 const QUARANTINE_BUCKET = process.env.QUARANTINE_BUCKET!;
 const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME!;
 const EVENT_SOURCE = process.env.EVENT_SOURCE!;
@@ -149,17 +157,33 @@ async function rejectDocument(bucket: string, key: string, reason: string): Prom
 }
 
 async function publishDocumentValidatedEvent(bucket: string, key: string, validationResult: ValidationResult): Promise<void> {
+    const documentId = randomUUID();
+    const now = new Date().toISOString();
+    
+    const detail: DocumentValidatedDetail = {
+        documentId: documentId,
+        bucketName: bucket,
+        objectKey: key,
+        contentType: validationResult.metadata?.mimeType || 'application/octet-stream',
+        fileSize: validationResult.metadata?.contentLength || 0,
+        validatedAt: now,
+        metadata: {
+            originalFileName: key.split('/').pop() || key,
+            uploadedBy: 'system' // Could be extracted from S3 metadata if available
+        }
+    };
+
+    // Get AWS context for account and region
+    const account = process.env.AWS_ACCOUNT_ID || 'unknown';
+    const region = process.env.AWS_REGION || 'unknown';
+    const validatedEvent = createDocumentValidatedEvent(account, region, detail);
+
     const event = {
         Time: new Date(),
-        Source: EVENT_SOURCE,
-        DetailType: 'Document Validated',
-        Detail: JSON.stringify({
-            documentId: key,
-            bucket: bucket,
-            metadata: validationResult.metadata,
-            validatedAt: new Date().toISOString(),
-            status: 'validated'
-        })
+        Source: validatedEvent.source,
+        DetailType: validatedEvent['detail-type'],
+        EventBusName: EVENT_BUS_NAME,
+        Detail: JSON.stringify(validatedEvent.detail)
     };
 
     await eventBridgeClient.send(new PutEventsCommand({
@@ -168,17 +192,44 @@ async function publishDocumentValidatedEvent(bucket: string, key: string, valida
 }
 
 async function publishDocumentQuarantinedEvent(bucket: string, key: string, reason: string): Promise<void> {
+    const documentId = randomUUID();
+    const now = new Date().toISOString();
+    const quarantineKey = `quarantine/${now}/${key}`;
+    
+    // Determine quarantine code based on reason
+    let quarantineCode: DocumentQuarantinedDetail['quarantineCode'] = 'MANUAL_REVIEW_REQUIRED';
+    if (reason.toLowerCase().includes('suspicious') || reason.toLowerCase().includes('malware')) {
+        quarantineCode = 'SUSPICIOUS_CONTENT';
+    } else if (reason.toLowerCase().includes('policy') || reason.toLowerCase().includes('violation')) {
+        quarantineCode = 'POLICY_VIOLATION';
+    }
+    
+    const detail: DocumentQuarantinedDetail = {
+        documentId: documentId,
+        bucketName: QUARANTINE_BUCKET,
+        objectKey: quarantineKey,
+        quarantineReason: reason,
+        quarantineCode: quarantineCode,
+        quarantinedAt: now,
+        reviewRequired: true,
+        metadata: {
+            originalFileName: key.split('/').pop() || key,
+            riskScore: 50, // Default risk score, could be calculated based on validation
+            flaggedBy: 'validation-handler'
+        }
+    };
+
+    // Get AWS context for account and region
+    const account = process.env.AWS_ACCOUNT_ID || 'unknown';
+    const region = process.env.AWS_REGION || 'unknown';
+    const quarantinedEvent = createDocumentQuarantinedEvent(account, region, detail);
+
     const event = {
         Time: new Date(),
-        Source: EVENT_SOURCE,
-        DetailType: 'Document Quarantined',
-        Detail: JSON.stringify({
-            documentId: key,
-            bucket: bucket,
-            quarantineReason: reason,
-            quarantinedAt: new Date().toISOString(),
-            status: 'quarantined'
-        })
+        Source: quarantinedEvent.source,
+        DetailType: quarantinedEvent['detail-type'],
+        EventBusName: EVENT_BUS_NAME,
+        Detail: JSON.stringify(quarantinedEvent.detail)
     };
 
     await eventBridgeClient.send(new PutEventsCommand({
@@ -187,17 +238,40 @@ async function publishDocumentQuarantinedEvent(bucket: string, key: string, reas
 }
 
 async function publishDocumentRejectedEvent(bucket: string, key: string, reason: string): Promise<void> {
+    const documentId = randomUUID();
+    const now = new Date().toISOString();
+    
+    // Determine rejection code based on reason
+    let rejectionCode: DocumentRejectedDetail['rejectionCode'] = 'INVALID_FORMAT';
+    if (reason.toLowerCase().includes('size')) rejectionCode = 'TOO_LARGE';
+    if (reason.toLowerCase().includes('mime') || reason.toLowerCase().includes('type')) rejectionCode = 'UNSUPPORTED_TYPE';
+    if (reason.toLowerCase().includes('malware') || reason.toLowerCase().includes('virus')) rejectionCode = 'MALWARE_DETECTED';
+    
+    const detail: DocumentRejectedDetail = {
+        documentId: documentId,
+        bucketName: bucket,
+        objectKey: key,
+        rejectionReason: reason,
+        rejectionCode: rejectionCode,
+        rejectedAt: now,
+        metadata: {
+            originalFileName: key.split('/').pop() || key,
+            attemptedContentType: 'unknown',
+            fileSize: 0 // Could be extracted from S3 event if needed
+        }
+    };
+
+    // Get AWS context for account and region
+    const account = process.env.AWS_ACCOUNT_ID || 'unknown';
+    const region = process.env.AWS_REGION || 'unknown';
+    const rejectedEvent = createDocumentRejectedEvent(account, region, detail);
+
     const event = {
         Time: new Date(),
-        Source: EVENT_SOURCE,
-        DetailType: 'Document Rejected',
-        Detail: JSON.stringify({
-            documentId: key,
-            bucket: bucket,
-            rejectionReason: reason,
-            rejectedAt: new Date().toISOString(),
-            status: 'rejected'
-        })
+        Source: rejectedEvent.source,
+        DetailType: rejectedEvent['detail-type'],
+        EventBusName: EVENT_BUS_NAME,
+        Detail: JSON.stringify(rejectedEvent.detail)
     };
 
     await eventBridgeClient.send(new PutEventsCommand({
