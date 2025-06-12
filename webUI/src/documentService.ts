@@ -23,7 +23,7 @@ export class DocumentService {
         this.credentials = credentials;
     }
 
-    async requestUploadUrl(fileName: string, fileType: string): Promise<UploadResponse> {
+    async requestUploadUrl(fileName: string, fileType: string, fileSize: number): Promise<UploadResponse> {
         if (!this.credentials) {
             throw new Error('DocumentService not initialized with credentials');
         }
@@ -37,6 +37,7 @@ export class DocumentService {
                 body: JSON.stringify({
                     fileName,
                     fileType,
+                    fileSize
                 }),
             });
 
@@ -56,7 +57,7 @@ export class DocumentService {
             progressCallback?.(10);
 
             // Step 1: Request upload URL
-            const uploadResponse = await this.requestUploadUrl(file.name, file.type);
+            const uploadResponse = await this.requestUploadUrl(file.name, file.type, file.size);
             progressCallback?.(20);
 
             // Step 2: Upload directly to S3 using presigned URL

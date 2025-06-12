@@ -10,7 +10,7 @@ interface UploadRequest {
     fileName: string;
     fileType: string;
     fileSize: number;
-    userId?: string;
+    userIdentityId?: string;
 }
 
 // Supported file types for document ingestion
@@ -60,11 +60,11 @@ function getUserIdentityFromContext(event: APIGatewayProxyEvent, requestId: stri
 /**
  * Validates the upload request parameters
  */
-function validateUploadRequest(body: any, requestId: string): UploadRequest {
+function validateUploadRequest(body: any, requestId: string, userIdentityId:string): UploadRequest {
     console.log(`[${requestId}] Starting upload request validation`);
     console.log(`[${requestId}] Request body:`, JSON.stringify(body, null, 2));
 
-    const {fileName, fileType, fileSize, userId} = body;
+    const {fileName, fileType, fileSize } = body;
 
     // Validate fileName
     console.log(`[${requestId}] Validating fileName: ${fileName}`);
@@ -108,7 +108,7 @@ function validateUploadRequest(body: any, requestId: string): UploadRequest {
     }
 
     console.log(`[${requestId}] ✅ Upload request validation passed`);
-    return {fileName, fileType, fileSize, userId};
+    return {fileName, fileType, fileSize, userIdentityId};
 }
 
 /**
@@ -142,9 +142,9 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         console.log(`[${requestId}]   ${key}: ${maskedValue}`);
     });
 
+    // Extract user identity from API Gateway request context
+    let userIdentityId: string;
     try {
-        // Extract user identity from API Gateway request context
-        let userIdentityId: string;
         try {
             userIdentityId = getUserIdentityFromContext(event, requestId);
         } catch (error) {
@@ -187,7 +187,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
         try {
             console.log(`[${requestId}] Parsing request body...`);
             const body = JSON.parse(event.body);
-            uploadRequest = validateUploadRequest(body, requestId);
+            uploadRequest = validateUploadRequest(body, requestId, userIdentityId);
         } catch (error) {
             const duration = Date.now() - startTime;
             console.error(`[${requestId}] ❌ Request validation failed after ${duration}ms`);
