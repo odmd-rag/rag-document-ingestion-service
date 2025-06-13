@@ -4,7 +4,6 @@ import {Construct} from 'constructs';
 import {Bucket} from "aws-cdk-lib/aws-s3";
 import {AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId} from "aws-cdk-lib/custom-resources";
 import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
-import {RagDocumentIngestionAuthStack} from './rag-document-ingestion-auth-stack';
 import {RagDocumentIngestionStack} from './rag-document-ingestion-stack';
 import {RagDocumentIngestionWebHostingStack} from "./rag-document-ingestion-web-hosting-stack";
 
@@ -13,13 +12,11 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
     readonly targetBucket: Bucket;
     readonly webHostingStack: RagDocumentIngestionWebHostingStack;
     readonly myEnver: RagDocumentIngestionEnver;
-    readonly authStack: RagDocumentIngestionAuthStack;
     readonly mainStack: RagDocumentIngestionStack;
 
     constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps & {
         bucket: Bucket;
         webHostingStack: RagDocumentIngestionWebHostingStack;
-        authStack: RagDocumentIngestionAuthStack;
         mainStack: RagDocumentIngestionStack;
     }) {
         const id = myEnver.getRevStackNames()[3]
@@ -28,7 +25,6 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
         this.targetBucket = props.bucket;
         this.webHostingStack = props.webHostingStack;
         this.myEnver = myEnver;
-        this.authStack = props.authStack;
         this.mainStack = props.mainStack;
     }
 
@@ -51,7 +47,6 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
         const configObject = {
             aws: {
                 region: this.region,
-                identityPoolId: this.authStack.identityPool.ref,
                 apiEndpoint: `https://${this.mainStack.apiDomain}`,
             },
             google: {
@@ -102,7 +97,6 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 
 - **Web Domain**: ${this.webHostingStack.webSubFQDN}
 - **API Endpoint**: https://${this.mainStack.apiDomain}
-- **Identity Pool ID**: ${this.authStack.identityPool.ref}
 - **Region**: ${this.region}
 - **Google Client ID**: ${clientId} (from auth service contracts)
 - **Auth Provider**: ${providerName}

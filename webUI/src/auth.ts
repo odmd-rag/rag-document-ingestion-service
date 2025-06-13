@@ -1,7 +1,3 @@
-import {CognitoIdentityClient} from '@aws-sdk/client-cognito-identity';
-import {fromCognitoIdentityPool} from '@aws-sdk/credential-provider-cognito-identity';
-import {STSClient, GetCallerIdentityCommand} from '@aws-sdk/client-sts';
-import type {AwsCredentialIdentity} from '@aws-sdk/types';
 import {type Config, getConfig} from './config.js';
 
 export interface UserInfo {
@@ -13,7 +9,7 @@ export interface UserInfo {
 export class AuthService {
     private static _instance: AuthService | null = null;
     private config!: Config;
-    private _credentials: AwsCredentialIdentity | null = null;
+    private _idToken: string| null = null;
     private userInfo: UserInfo | null = null;
     private tokenRefreshTimeout?: number;
 
@@ -30,9 +26,7 @@ export class AuthService {
 
         const missingConfig = [];
         if (!this.config.aws?.region) missingConfig.push('aws.region');
-        if (!this.config.aws?.identityPoolId) missingConfig.push('aws.identityPoolId');
         if (!this.config.google?.clientId) missingConfig.push('google.clientId');
-        if (!this.config.cognito?.providerName) missingConfig.push('cognito.providerName');
         
         if (missingConfig.length > 0) {
             throw new Error(`Missing critical configuration: ${missingConfig.join(', ')}`);
@@ -40,16 +34,14 @@ export class AuthService {
         
         console.log('🔧 AuthService initialized with config:', {
             region: this.config.aws.region,
-            identityPoolId: this.config.aws.identityPoolId,
             apiEndpoint: this.config.aws.apiEndpoint,
-            providerName: this.config.cognito.providerName,
             userPoolDomain: this.config.cognito.userPoolDomain,
             googleClientId: this.config.google.clientId
         });
     }
 
-    get credentials(): AwsCredentialIdentity | null {
-        return this._credentials;
+    get idToken(): string | null {
+        return this._idToken;
     }
 
     get currentUser(): UserInfo | null {
@@ -57,7 +49,7 @@ export class AuthService {
     }
 
     get isAuthenticated(): boolean {
-        return this.userInfo !== null && this._credentials !== null;
+        return this.userInfo !== null && this._idToken !== null;
     }
 
     // Initiate authentication with user-auth service
@@ -115,10 +107,10 @@ export class AuthService {
         }
 
         const tokens = await tokenResponse.json();
-        const idToken = tokens.id_token;
+        this._idToken = tokens.id_token as string;
 
         // Parse user info from ID token
-        const payload = JSON.parse(atob(idToken.split('.')[1]));
+        const payload = JSON.parse(atob(this._idToken.split('.')[1]));
         console.log('🔍 ID Token payload:', payload);
         
         this.userInfo = {
@@ -137,81 +129,13 @@ export class AuthService {
         }
 
         // Store tokens for credential refresh
-        localStorage.setItem('id_token', idToken);
+        localStorage.setItem('id_token', this._idToken);
         localStorage.setItem('user_info', JSON.stringify(this.userInfo));
 
-        // Get AWS credentials via Cognito Identity Pool
-        await this.refreshCredentials();
 
         return this.userInfo;
     }
 
-    // Exchange ID token from user-auth service for AWS credentials via Identity Pool
-    async refreshCredentials(): Promise<AwsCredentialIdentity | null> {
-        const idToken = localStorage.getItem('id_token');
-        if (!idToken) {
-            this.logout();
-            return null;
-        }
-
-        try {
-            const client = new CognitoIdentityClient({
-                region: this.config.aws.region
-            });
-
-            // Use the Identity Pool to get AWS credentials with federated token
-            this._credentials = await fromCognitoIdentityPool({
-                client,
-                identityPoolId: this.config.aws.identityPoolId,
-                logins: {
-                    // Use the user-auth service provider as the login provider
-                    [this.config.cognito.providerName]: idToken
-                }
-            })();
-
-            console.log('✅ AWS credentials refreshed successfully');
-            console.log('🔍 Provider name being used:', this.config.cognito.providerName);
-            console.log('🔍 Identity Pool ID:', this.config.aws.identityPoolId);
-            console.log('🔍 User groups:', this.userInfo?.groups);
-
-            // Debug: Check who these credentials belong to using GetCallerIdentity
-            try {
-                const stsClient = new STSClient({
-                    region: this.config.aws.region,
-                    credentials: this._credentials
-                });
-                const callerIdentity = await stsClient.send(new GetCallerIdentityCommand({}));
-                console.log('🔍 Credential identity:', {
-                    account: callerIdentity.Account,
-                    arn: callerIdentity.Arn,
-                    userId: callerIdentity.UserId
-                });
-            } catch (error) {
-                console.error('❌ Failed to get caller identity:', error);
-            }
-
-            // Schedule next refresh (20 minutes)
-            if (this.tokenRefreshTimeout) {
-                window.clearTimeout(this.tokenRefreshTimeout);
-            }
-            this.tokenRefreshTimeout = window.setTimeout(
-                () => this.refreshCredentials(),
-                20 * 60 * 1000 // 20 minutes
-            );
-
-            return this._credentials;
-        } catch (error: any) {
-            console.error('❌ Failed to refresh credentials:', error);
-
-            if (error.name === 'NotAuthorizedException') {
-                throw new Error('Access denied: Not authorized to assume upload role. Please contact your administrator to be added to the "odmd-rag-uploader" group.');
-            }
-
-            // For other errors, logout and re-authenticate
-            this.logout();
-            throw new Error(`Authentication failed: ${error.message}`);
-        }
-    }
 
     // Load existing session on page load
     async loadExistingSession(): Promise<UserInfo | null> {
@@ -224,7 +148,6 @@ export class AuthService {
 
         try {
             this.userInfo = JSON.parse(storedUserInfo);
-            await this.refreshCredentials();
             return this.userInfo;
         } catch (error) {
             console.warn('⚠️ Failed to restore session:', error);
@@ -243,7 +166,6 @@ export class AuthService {
             window.clearTimeout(this.tokenRefreshTimeout);
         }
 
-        this._credentials = null;
         this.userInfo = null;
 
         // Redirect to clean URL

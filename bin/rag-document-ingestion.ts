@@ -3,7 +3,6 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { StackProps } from 'aws-cdk-lib';
 import { RagDocumentIngestionStack } from '../lib/rag-document-ingestion-stack';
-import { RagDocumentIngestionAuthStack } from '../lib/rag-document-ingestion-auth-stack';
 import { RagDocumentIngestionWebHostingStack } from '../lib/rag-document-ingestion-web-hosting-stack';
 import { RagDocumentIngestionWebUiStack } from '../lib/rag-document-ingestion-web-ui-stack';
 import {RagContracts, RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
@@ -38,18 +37,12 @@ async function main() {
         hostedZoneId: webHostingStack.hostedZoneId,
         webUiDomain: webHostingStack.webSubFQDN,
     });
-    
-    // Create auth stack after main stack so it can import the API Gateway ARN
-    const authStack = new RagDocumentIngestionAuthStack(app, targetEnver, props);
 
-    // Implement auth callback producers for user-auth service to consume
-    authStack.implementAuthCallbackProducers(targetEnver, webHostingStack.webSubFQDN);
     
     const webUiStack = new RagDocumentIngestionWebUiStack(app, targetEnver, {
         ...props,
         bucket: webHostingStack.bucket,
         webHostingStack: webHostingStack,
-        authStack: authStack,
         mainStack: mainStack,
     });
 

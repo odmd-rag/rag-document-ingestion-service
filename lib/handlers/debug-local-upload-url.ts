@@ -1,6 +1,7 @@
 import {GetCallerIdentityCommand, STSClient} from "@aws-sdk/client-sts";
 import {fromIni} from "@aws-sdk/credential-providers";
 import * as fs from "node:fs";
+import {APIGatewayProxyStructuredResultV2} from "aws-lambda/trigger/api-gateway-proxy";
 
 // import {addProxyToClient} from "aws-sdk-v3-proxy";
 // process.env.HTTP_PROXY='http://192.168.49.1:8282'
@@ -60,7 +61,7 @@ async function main() {
         'USER_POOL_ID',
         'CORS_ORIGIN'
     ];
-    
+
     for (const envVar of requiredEnvVars) {
         const value = process.env[envVar];
         console.log(`  ${envVar}: ${value || 'NOT SET'}`);
@@ -76,13 +77,13 @@ async function main() {
     console.log(`Path: ${event.path || event.rawPath}`);
     console.log(`Query parameters:`, event.queryStringParameters);
     console.log(`Path parameters:`, event.pathParameters);
-    
+
     if (event.headers) {
         console.log(`Headers:`);
         Object.entries(event.headers).forEach(([key, value]) => {
             // Mask sensitive headers
-            const maskedValue = key.toLowerCase().includes('authorization') || key.toLowerCase().includes('token') 
-                ? `${String(value).substring(0, 10)}...` 
+            const maskedValue = key.toLowerCase().includes('authorization') || key.toLowerCase().includes('token')
+                ? `${String(value).substring(0, 10)}...`
                 : value;
             console.log(`  ${key}: ${maskedValue}`);
         });
@@ -101,24 +102,23 @@ async function main() {
 
     console.log(`\n=== Starting Upload URL Handler ===`);
     const startTime = Date.now();
-    
+
     try {
         const {handler} = await import("./src/upload-url-handler");
-        const result = await handler(event);
-        
+        const result = await handler(event) as APIGatewayProxyStructuredResultV2
+
         const endTime = Date.now();
         const executionTime = endTime - startTime;
-        
+
         console.log(`\n=== Execution Completed Successfully ===`);
         console.log(`Execution time: ${executionTime}ms`);
-        console.log(`Status code: ${result.statusCode}`);
-        console.log(`Response headers:`, result.headers);
-        
+        console.log(`Result: ${JSON.stringify(result)}`);
+
         // Parse and log response body if it's JSON
         try {
-            const responseBody = JSON.parse(result.body);
+            const responseBody = JSON.parse(result.body!);
             console.log(`Response body:`, responseBody);
-            
+
             // Log presigned URL info if present
             if (responseBody.uploadUrl) {
                 const url = new URL(responseBody.uploadUrl);
@@ -130,11 +130,11 @@ async function main() {
         } catch {
             console.log(`Response body (raw): ${result.body}`);
         }
-        
+
     } catch (error) {
         const endTime = Date.now();
         const executionTime = endTime - startTime;
-        
+
         console.error(`\n=== Execution Failed ===`);
         console.error(`Execution time: ${executionTime}ms`);
         console.error(`Error type: ${error instanceof Error ? error.constructor.name : typeof error}`);

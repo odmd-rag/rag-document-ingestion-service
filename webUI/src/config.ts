@@ -2,14 +2,12 @@
 export interface Config {
     aws: {
         region: string;
-        identityPoolId: string;
         apiEndpoint: string;
     };
     google: {
         clientId: string;
     };
     cognito: {
-        userPoolId: string;
         providerName: string;
         userPoolDomain: string;
     };

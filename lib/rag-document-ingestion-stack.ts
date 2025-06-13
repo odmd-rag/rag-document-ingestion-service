@@ -7,7 +7,7 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as schemas from 'aws-cdk-lib/aws-eventschemas';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import {HttpIamAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
+import {HttpIamAuthorizer, HttpJwtAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import {NodejsFunction} from 'aws-cdk-lib/aws-lambda-nodejs';
 import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
 import {Certificate, CertificateValidation} from "aws-cdk-lib/aws-certificatemanager";
@@ -247,10 +247,17 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         const allowedOrigins = ['http://localhost:5173'];
         allowedOrigins.push(`https://${props.webUiDomain}`);
 
+
+        const clientId = myEnver.authProviderClientId.getSharedValue(this);
+        const providerName = myEnver.authProviderName.getSharedValue(this);
+
         this.httpApi = new apigatewayv2.HttpApi(this, 'DocumentIngestionApi', {
             apiName: 'RAG Document Ingestion Service',
             description: 'HTTP API for RAG document ingestion operations with IAM authentication',
-            defaultAuthorizer: new HttpIamAuthorizer(),
+            defaultAuthorizer: new HttpJwtAuthorizer('Auth',
+                `https://${providerName}`,
+                {jwtAudience: [clientId]}
+            ),
             corsPreflight: {
                 allowOrigins: allowedOrigins,
                 allowMethods: [apigatewayv2.CorsHttpMethod.GET, apigatewayv2.CorsHttpMethod.POST, apigatewayv2.CorsHttpMethod.PUT, apigatewayv2.CorsHttpMethod.DELETE, apigatewayv2.CorsHttpMethod.OPTIONS],

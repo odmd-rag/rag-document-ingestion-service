@@ -1,7 +1,4 @@
-import type {AwsCredentialIdentity} from '@aws-sdk/types';
 import {getConfig} from './config.js';
-import {SignatureV4} from '@aws-sdk/signature-v4';
-import {Sha256} from '@aws-crypto/sha256-js';
 
 export interface UploadResponse {
     uploadUrl: string;
@@ -17,39 +14,37 @@ export interface DocumentStatus {
 }
 
 export class DocumentService {
-    private credentials: AwsCredentialIdentity | null = null;
+    private idToken: string | null = null;
 
-    async initialize(credentials: AwsCredentialIdentity): Promise<void> {
-        this.credentials = credentials;
+    async initialize(credentials: string): Promise<void> {
+        this.idToken = credentials;
     }
 
     async requestUploadUrl(fileName: string, fileType: string, fileSize: number): Promise<UploadResponse> {
-        if (!this.credentials) {
-            throw new Error('DocumentService not initialized with credentials');
+        if (!this.idToken) {
+            throw new Error('DocumentService not initialized with idToken');
         }
 
-        try {
-            const response = await this.authenticatedFetch('/upload', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    fileName,
-                    fileType,
-                    fileSize
-                }),
-            });
+        const config = getConfig();
 
-            if (!response.ok) {
-                throw new Error(`Failed to get upload URL: ${response.statusText}`);
-            }
+        const response = await fetch(`${config.aws.apiEndpoint}/upload-url`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.idToken}`,
+            },
+            body: JSON.stringify({
+                fileName,
+                fileType,
+                fileSize
+            }),
+        });
 
-            return await response.json();
-        } catch (error) {
-            console.error('Error requesting upload URL:', error);
-            throw error;
+        if (!response.ok) {
+            throw new Error(`Failed to get upload URL: ${response.statusText}`);
         }
+
+        return await response.json();
     }
 
     async uploadDocument(file: File, progressCallback?: (progress: number) => void): Promise<string> {
@@ -113,13 +108,18 @@ export class DocumentService {
     }
 
     async getUploadStatus(documentId: string): Promise<DocumentStatus> {
-        if (!this.credentials) {
-            throw new Error('DocumentService not initialized with credentials');
+        if (!this.idToken) {
+            throw new Error('DocumentService not initialized with idToken');
         }
+        const config = getConfig();
 
         try {
-            const response = await this.authenticatedFetch(`/status/${documentId}`, {
+            const response = await fetch(`${config.aws.apiEndpoint}/status/${documentId}`, {
                 method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.idToken}`,
+                },
             });
 
             if (!response.ok) {
@@ -133,55 +133,5 @@ export class DocumentService {
         }
     }
 
-    private async authenticatedFetch(
-        path: string,
-        options: RequestInit
-    ): Promise<Response> {
-        if (!this.credentials) {
-            throw new Error('DocumentService not initialized with credentials');
-        }
 
-        const config = getConfig();
-        const url = new URL(`${config.aws.apiEndpoint.replace(/\/$/, '')}${path}`);
-
-        // Create simple request object like the working GraphQL client
-        const request = {
-            method: options.method || 'GET',
-            protocol: 'https:',
-            hostname: url.hostname,
-            path: url.pathname + url.search,
-            headers: {
-                'Content-Type': 'application/json',
-                'host': url.hostname,
-                ...(options.headers as Record<string, string>),
-            },
-            body: options.body || '',
-        };
-
-        // Sign the request using AWS Signature V4 (same pattern as working GraphQL client)
-        const signer = new SignatureV4({
-            credentials: this.credentials,
-            region: config.aws.region,
-            service: 'execute-api',
-            sha256: Sha256,
-        });
-
-        const signedRequest = await signer.sign(request);
-        console.log('signedRequest:', JSON.stringify({
-            method: signedRequest.method,
-            hostname: signedRequest.hostname,
-            query: signedRequest.query,
-            headers: signedRequest.headers,
-            body: signedRequest.body,
-            protocol: signedRequest.protocol,
-            path: signedRequest.path
-        }, null, 2));
-
-        // Convert signed request back to fetch options
-        return fetch(url.toString(), {
-            method: signedRequest.method,
-            headers: signedRequest.headers as Record<string, string>,
-            body: signedRequest.body,
-        });
-    }
-} 
+}

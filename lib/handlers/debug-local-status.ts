@@ -1,6 +1,7 @@
 import {GetCallerIdentityCommand, STSClient} from "@aws-sdk/client-sts";
 import {fromIni} from "@aws-sdk/credential-providers";
 import * as fs from "node:fs";
+import {APIGatewayProxyStructuredResultV2} from "aws-lambda/trigger/api-gateway-proxy";
 
 // import {addProxyToClient} from "aws-sdk-v3-proxy";
 // process.env.HTTP_PROXY='http://192.168.49.1:8282'
@@ -109,19 +110,18 @@ async function main() {
     
     try {
         const {handler} = await import("./src/status-handler");
-        const result = await handler(event);
+        const result = await handler(event) as APIGatewayProxyStructuredResultV2;
         
         const endTime = Date.now();
         const executionTime = endTime - startTime;
         
         console.log(`\n=== Execution Completed Successfully ===`);
         console.log(`Execution time: ${executionTime}ms`);
-        console.log(`Status code: ${result.statusCode}`);
-        console.log(`Response headers:`, result.headers);
+        console.log(`Response headers:`, result);
         
         // Parse and log response body if it's JSON
         try {
-            const responseBody = JSON.parse(result.body);
+            const responseBody = JSON.parse(result.body!);
             console.log(`Response body:`, responseBody);
             
             // Log document status info if present

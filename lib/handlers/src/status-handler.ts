@@ -1,9 +1,9 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { S3Client, HeadObjectCommand, GetObjectTaggingCommand } from '@aws-sdk/client-s3';
-import { CognitoIdentityClient, GetIdCommand } from '@aws-sdk/client-cognito-identity';
+import {APIGatewayProxyEventV2, APIGatewayProxyResultV2} from 'aws-lambda';
+import {S3Client, HeadObjectCommand, GetObjectTaggingCommand} from '@aws-sdk/client-s3';
+import * as console from "node:console";
+import {JWTClaims} from "./typing.js";
 
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'us-east-1' });
-const cognitoClient = new CognitoIdentityClient({ region: process.env.AWS_REGION || 'us-east-1' });
+const s3Client = new S3Client({region: process.env.AWS_REGION || 'us-east-1'});
 
 const DOCUMENT_BUCKET = process.env.DOCUMENT_BUCKET!;
 const QUARANTINE_BUCKET = process.env.QUARANTINE_BUCKET!;
@@ -23,49 +23,6 @@ interface DocumentStatus {
     userIdentityId?: string;
 }
 
-/**
- * Validates the authentication token and gets user identity
- */
-async function validateAndGetUserIdentity(authToken: string, requestId: string): Promise<string> {
-    const startTime = Date.now();
-    console.log(`[${requestId}] Starting authentication validation...`);
-    console.log(`[${requestId}] Auth token length: ${authToken.length} characters`);
-    
-    try {
-        // Extract the ID token from the Authorization header
-        const token = authToken.replace('Bearer ', '');
-        console.log(`[${requestId}] Token extracted (length: ${token.length})`);
-        console.log(`[${requestId}] Identity Pool ID: ${IDENTITY_POOL_ID}`);
-        console.log(`[${requestId}] AWS Region: ${process.env.AWS_REGION}`);
-        
-        // For federated identity, we need to get the identity ID from Cognito
-        const getIdParams = {
-            IdentityPoolId: IDENTITY_POOL_ID,
-            Logins: {
-                // This should match the provider name from the stack
-                [`cognito-idp.${process.env.AWS_REGION}.amazonaws.com/us-east-1_example`]: token
-            }
-        };
-
-        console.log(`[${requestId}] Calling Cognito GetId with provider key: cognito-idp.${process.env.AWS_REGION}.amazonaws.com/us-east-1_example`);
-        const getIdResult = await cognitoClient.send(new GetIdCommand(getIdParams));
-        
-        if (!getIdResult.IdentityId) {
-            console.error(`[${requestId}] ❌ Failed to get identity ID from Cognito`);
-            throw new Error('Failed to get identity ID');
-        }
-
-        const duration = Date.now() - startTime;
-        console.log(`[${requestId}] ✅ Authentication successful in ${duration}ms`);
-        console.log(`[${requestId}] Identity ID: ${getIdResult.IdentityId}`);
-        return getIdResult.IdentityId;
-    } catch (error) {
-        const duration = Date.now() - startTime;
-        console.error(`[${requestId}] ❌ Authentication failed after ${duration}ms`);
-        console.error(`[${requestId}] Authentication error:`, error);
-        throw new Error('Invalid authentication token');
-    }
-}
 
 /**
  * Gets document metadata from S3
@@ -73,13 +30,13 @@ async function validateAndGetUserIdentity(authToken: string, requestId: string):
 async function getDocumentMetadata(bucket: string, key: string, requestId: string): Promise<any> {
     const startTime = Date.now();
     console.log(`[${requestId}] Fetching metadata for s3://${bucket}/${key}`);
-    
+
     try {
         const headCommand = new HeadObjectCommand({
             Bucket: bucket,
             Key: key
         });
-        
+
         const headResult = await s3Client.send(headCommand);
         const headDuration = Date.now() - startTime;
         console.log(`[${requestId}] ✅ Head object completed in ${headDuration}ms`);
@@ -89,7 +46,7 @@ async function getDocumentMetadata(bucket: string, key: string, requestId: strin
         console.log(`[${requestId}]   Last-Modified: ${headResult.LastModified}`);
         console.log(`[${requestId}]   ETag: ${headResult.ETag}`);
         console.log(`[${requestId}]   Custom Metadata:`, JSON.stringify(headResult.Metadata, null, 2));
-        
+
         // Also get tags if available
         let tags = {};
         try {
@@ -101,12 +58,12 @@ async function getDocumentMetadata(bucket: string, key: string, requestId: strin
             });
             const tagsResult = await s3Client.send(tagsCommand);
             const tagsDuration = Date.now() - tagsStartTime;
-            
+
             tags = tagsResult.TagSet?.reduce((acc, tag) => {
                 acc[tag.Key!] = tag.Value!;
                 return acc;
             }, {} as Record<string, string>) || {};
-            
+
             console.log(`[${requestId}] ✅ Tags fetched in ${tagsDuration}ms:`, JSON.stringify(tags, null, 2));
         } catch (error) {
             console.log(`[${requestId}] ℹ️  No tags found for object: ${key}`);
@@ -138,7 +95,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
     console.log(`[${requestId}] Starting document status check...`);
     console.log(`[${requestId}] Document ID: ${documentId}`);
     console.log(`[${requestId}] User Identity ID: ${userIdentityId}`);
-    
+
     const result: DocumentStatus = {
         documentId,
         status: 'not_found',
@@ -160,7 +117,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             console.log(`[${requestId}] Skipping pattern with wildcard: ${pattern}`);
             continue;
         }
-        
+
         console.log(`[${requestId}] Checking key ${index + 1}/${possibleKeys.length}: ${pattern}`);
         const metadata = await getDocumentMetadata(DOCUMENT_BUCKET, pattern, requestId);
         if (metadata) {
@@ -172,7 +129,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             result.uploadedAt = metadata.Metadata?.['upload-timestamp'];
             result.validatedAt = metadata.LastModified?.toISOString();
             result.userIdentityId = metadata.Metadata?.['user-identity-id'];
-            
+
             const duration = Date.now() - startTime;
             console.log(`[${requestId}] Document status check completed in ${duration}ms: VALIDATED`);
             return result;
@@ -193,7 +150,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             console.log(`[${requestId}] Skipping quarantine pattern with wildcard: ${pattern}`);
             continue;
         }
-        
+
         console.log(`[${requestId}] Checking quarantine key ${index + 1}/${quarantineKeys.length}: ${pattern}`);
         const metadata = await getDocumentMetadata(QUARANTINE_BUCKET, pattern, requestId);
         if (metadata) {
@@ -206,7 +163,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             result.quarantinedAt = metadata.LastModified?.toISOString();
             result.errorMessage = metadata.Metadata?.['quarantine-reason'] || metadata.Metadata?.['rejection-reason'];
             result.userIdentityId = metadata.Metadata?.['user-identity-id'];
-            
+
             const duration = Date.now() - startTime;
             console.log(`[${requestId}] Document status check completed in ${duration}ms: ${result.status.toUpperCase()}`);
             return result;
@@ -218,21 +175,24 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
     return result;
 }
 
-/**
- * Gets the status of a document upload/processing
- */
-export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
+
+function getUserClaims(event: APIGatewayProxyEventV2): JWTClaims {
+    const claims = (event.requestContext as any).authorizer?.jwt?.claims;
+    if (!claims?.sub) throw new Error('No valid JWT claims found');
+    return claims as JWTClaims;
+}
+
+export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+    console.log(JSON.stringify(event, null, 2));
+
     const startTime = Date.now();
     const requestId = event.requestContext.requestId;
-    
+
+    const {sub: userId, email} = getUserClaims(event);
+
     console.log(`[${requestId}] === Document Status Handler Started ===`);
-    console.log(`[${requestId}] HTTP Method: ${event.httpMethod}`);
-    console.log(`[${requestId}] Resource: ${event.resource}`);
-    console.log(`[${requestId}] Path: ${event.path}`);
-    console.log(`[${requestId}] Source IP: ${event.requestContext.identity.sourceIp}`);
-    console.log(`[${requestId}] User Agent: ${event.requestContext.identity.userAgent}`);
     console.log(`[${requestId}] Stage: ${event.requestContext.stage}`);
-    
+
     // Log configuration
     console.log(`[${requestId}] Configuration:`);
     console.log(`[${requestId}]   DOCUMENT_BUCKET: ${DOCUMENT_BUCKET}`);
@@ -247,8 +207,8 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     // Log headers (mask sensitive ones)
     console.log(`[${requestId}] Request headers:`);
     Object.entries(event.headers || {}).forEach(([key, value]) => {
-        const maskedValue = key.toLowerCase().includes('authorization') || key.toLowerCase().includes('token') 
-            ? `${value?.substring(0, 10)}...` 
+        const maskedValue = key.toLowerCase().includes('authorization') || key.toLowerCase().includes('token')
+            ? `${value?.substring(0, 10)}...`
             : value;
         console.log(`[${requestId}]   ${key}: ${maskedValue}`);
     });
@@ -294,12 +254,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
                 })
             };
         }
-
-        // Validate user identity with Cognito
-        let userIdentityId: string;
-        try {
-            userIdentityId = await validateAndGetUserIdentity(authHeader, requestId);
-        } catch (error) {
+        if (!userId) {
             const duration = Date.now() - startTime;
             console.error(`[${requestId}] ❌ Authentication failed after ${duration}ms`);
             return {
@@ -311,7 +266,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
                 },
                 body: JSON.stringify({
                     error: 'Authentication failed',
-                    message: error instanceof Error ? error.message : 'Invalid authentication token',
+                    message: 'Invalid authentication token',
                     requestId
                 })
             };
@@ -319,7 +274,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
 
         // Check document status
         console.log(`[${requestId}] Starting document status lookup...`);
-        const documentStatus = await checkDocumentStatus(documentId, userIdentityId, requestId);
+        const documentStatus = await checkDocumentStatus(documentId, userId, requestId);
 
         const totalDuration = Date.now() - startTime;
         console.log(`[${requestId}] === Document Status Handler Completed Successfully ===`);

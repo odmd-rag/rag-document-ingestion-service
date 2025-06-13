@@ -225,7 +225,7 @@ async function handleFileUpload(file: File): Promise<void> {
     showUploadProgress(0, 'Preparing upload...');
 
     // Initialize document service with current credentials
-    await documentService.initialize(authService.credentials!);
+    await documentService.initialize(authService.idToken!);
 
     // Upload the file
     const uploadId = await documentService.uploadDocument(file, (progress) => {
