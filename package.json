@@ -15,9 +15,9 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "cdk": "cdk",
-    "cdk-ls": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev cdk ls --show-dependencies --profile odmd-rag-ws1",
-    "cdk-synth": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev cdk synth --all -vv --profile odmd-rag-ws1",
-    "cdk-deploy": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev cdk deploy --all",
+    "cdk-ls": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev-_b..dev1 cdk ls --show-dependencies --profile odmd-rag-ws1",
+    "cdk-synth": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev-_b..dev1 cdk synth --all -vv --profile odmd-rag-ws1",
+    "cdk-deploy": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev-_b..dev1 cdk deploy --all",
     "package": "npm run build && npm pack",
     "start": "node dist/app.js",
     "generate:types": "ts-node .scripts/generate-types.ts",
@@ -41,7 +41,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@odmd-rag/contracts-lib-rag": "1.0.7",
+    "@odmd-rag/contracts-lib-rag": "1.0.8",
     "@types/aws-lambda": "^8.10.119",
     "@types/jest": "^29.5.14",
     "@types/mime-types": "^2.1.1",
