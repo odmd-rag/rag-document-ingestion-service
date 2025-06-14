@@ -7,13 +7,12 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as schemas from 'aws-cdk-lib/aws-eventschemas';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import {HttpIamAuthorizer, HttpJwtAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
+import {HttpJwtAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import {NodejsFunction} from 'aws-cdk-lib/aws-lambda-nodejs';
 import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
 import {Certificate, CertificateValidation} from "aws-cdk-lib/aws-certificatemanager";
 import {ARecord, HostedZone, RecordTarget} from "aws-cdk-lib/aws-route53";
 import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
-import {Stack} from "aws-cdk-lib";
 import {OdmdShareOut} from "@ondemandenv/contracts-lib-base";
 
 export class RagDocumentIngestionStack extends cdk.Stack {

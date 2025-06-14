@@ -23,7 +23,7 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
     readonly hostedZoneId: string;
 
     constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps) {
-        const id = myEnver.getRevStackNames()[2]
+        const id = myEnver.getRevStackNames()[1]
         super(scope, id, {...props, crossRegionReferences: props.env!.region != 'us-east-1'});
         // Get hosted zone information from shared values
         this.hostedZoneId = 'Z01450892FNOJJT5BBBRU';
