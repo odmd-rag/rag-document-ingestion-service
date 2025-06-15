@@ -246,6 +246,34 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         const allowedOrigins = ['http://localhost:5173'];
         allowedOrigins.push(`https://${props.webUiDomain}`);
 
+        // Add CORS configuration to document bucket for direct uploads
+        documentBucket.addCorsRule({
+            allowedOrigins: allowedOrigins,
+            allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.POST],
+            allowedHeaders: [
+                'Content-Type',
+                'Content-Length',
+                'Content-MD5',
+                'X-Amz-Content-Sha256',
+                'X-Amz-Date',
+                'X-Amz-Security-Token',
+                'X-Amz-User-Agent',
+                'X-Amz-Signature',
+                'X-Amz-SignedHeaders',
+                'X-Amz-Algorithm',
+                'X-Amz-Credential',
+                'X-Amz-Expires',
+                'x-amz-checksum-crc32',
+                'x-amz-meta-*',
+                'x-amz-sdk-checksum-algorithm',
+                'Authorization'
+            ],
+            exposedHeaders: [
+                'ETag',
+                'x-amz-version-id'
+            ],
+            maxAge: 3000
+        });
 
         const clientId = myEnver.authProviderClientId.getSharedValue(this);
         const providerName = myEnver.authProviderName.getSharedValue(this);
