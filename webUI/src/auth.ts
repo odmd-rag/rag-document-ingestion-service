@@ -148,6 +148,19 @@ export class AuthService {
 
         try {
             this.userInfo = JSON.parse(storedUserInfo);
+            this._idToken = idToken; // Restore the ID token
+            
+            // Validate that the token hasn't expired
+            const payload = JSON.parse(atob(idToken.split('.')[1]));
+            const currentTime = Math.floor(Date.now() / 1000);
+            
+            if (payload?.exp && payload.exp < currentTime) {
+                console.warn('⚠️ Stored token has expired');
+                this.logout();
+                return null;
+            }
+            
+            console.log('✅ Session restored for:', this.userInfo?.email);
             return this.userInfo;
         } catch (error) {
             console.warn('⚠️ Failed to restore session:', error);

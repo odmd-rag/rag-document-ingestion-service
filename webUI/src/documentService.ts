@@ -44,7 +44,18 @@ export class DocumentService {
             throw new Error(`Failed to get upload URL: ${response.statusText}`);
         }
 
-        return await response.json();
+        const result = await response.json();
+        
+        // Handle the actual API response structure
+        if (result.success && result.data) {
+            return {
+                uploadUrl: result.data.uploadUrl,
+                documentId: result.data.uploadId,
+                fields: {} // The upload URL is already presigned, no additional fields needed
+            };
+        } else {
+            throw new Error('Invalid response format from upload API');
+        }
     }
 
     async uploadDocument(file: File, progressCallback?: (progress: number) => void): Promise<string> {
@@ -56,18 +67,9 @@ export class DocumentService {
             progressCallback?.(20);
 
             // Step 2: Upload directly to S3 using presigned URL
-            const formData = new FormData();
-
-            // Add all the required fields from the presigned POST
-            Object.entries(uploadResponse.fields).forEach(([key, value]) => {
-                formData.append(key, value);
-            });
-
-            // Add the file (must be last)
-            formData.append('file', file);
             progressCallback?.(30);
 
-            // Use XMLHttpRequest for progress tracking
+            // Use XMLHttpRequest for progress tracking with PUT method for presigned URL
             const uploadResult = await new Promise<Response>((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
 
@@ -91,8 +93,10 @@ export class DocumentService {
                     reject(new Error('Upload failed due to network error'));
                 });
 
-                xhr.open('POST', uploadResponse.uploadUrl);
-                xhr.send(formData);
+                // For presigned PUT URLs, we send the file directly
+                xhr.open('PUT', uploadResponse.uploadUrl);
+                xhr.setRequestHeader('Content-Type', file.type);
+                xhr.send(file);
             });
 
             if (!uploadResult.ok) {
