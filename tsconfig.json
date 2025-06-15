@@ -28,6 +28,7 @@
     "bin/**/*"
   ],
   "exclude": [
+    "lib/handlers",
     "node_modules",
     "**/*.test.ts",
     "**/*.spec.ts"
