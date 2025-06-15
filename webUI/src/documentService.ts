@@ -27,7 +27,7 @@ export class DocumentService {
 
         const config = getConfig();
 
-        const response = await fetch(`${config.aws.apiEndpoint}/upload-url`, {
+        const response = await fetch(`${config.aws.apiEndpoint}/upload`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
