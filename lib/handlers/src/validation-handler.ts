@@ -1,31 +1,11 @@
 import { S3Event, Context } from 'aws-lambda';
-import { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
-import { SchemasClient, DescribeSchemaCommand } from '@aws-sdk/client-schemas';
-import Ajv from 'ajv';
+import { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import * as mime from 'mime-types';
-import { randomUUID } from 'crypto';
-import { 
-    DocumentValidatedDetail,
-    DocumentRejectedDetail, 
-    DocumentQuarantinedDetail,
-    createDocumentValidatedEvent,
-    createDocumentRejectedEvent,
-    createDocumentQuarantinedEvent
-} from './event-types';
 
 const s3Client = new S3Client({});
-const eventBridgeClient = new EventBridgeClient({});
-const schemasClient = new SchemasClient({});
 
 // Configuration  
 const QUARANTINE_BUCKET = process.env.QUARANTINE_BUCKET!;
-const EVENT_BUS_NAME = process.env.EVENT_BUS_NAME!;
-const EVENT_SOURCE = process.env.EVENT_SOURCE!;
-const SCHEMA_REGISTRY_NAME = process.env.SCHEMA_REGISTRY_NAME!;
-
-// Initialize AJV for schema validation
-const ajv = new Ajv();
 
 // Validation configuration
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
@@ -38,54 +18,6 @@ const ALLOWED_MIME_TYPES = [
     'text/html',
     'application/rtf'
 ];
-
-// Schema validation cache
-const schemaCache = new Map<string, any>();
-
-/**
- * Validates an event payload against its registered EventBridge schema
- */
-async function validateEventAgainstSchema(eventDetail: any, schemaName: string): Promise<{ isValid: boolean; errors?: any[] }> {
-    try {
-        // Check cache first
-        let schemaDefinition = schemaCache.get(schemaName);
-        
-        if (!schemaDefinition) {
-            // Fetch schema from EventBridge Schema Registry
-            const describeCommand = new DescribeSchemaCommand({
-                RegistryName: SCHEMA_REGISTRY_NAME,
-                SchemaName: schemaName
-            });
-            
-            const schemaResponse = await schemasClient.send(describeCommand);
-            if (!schemaResponse.Content) {
-                console.warn(`Schema ${schemaName} not found in registry`);
-                return { isValid: true }; // Graceful degradation
-            }
-            
-            schemaDefinition = JSON.parse(schemaResponse.Content);
-            schemaCache.set(schemaName, schemaDefinition);
-            console.log(`Cached schema ${schemaName} from registry`);
-        }
-        
-        // Validate using AJV
-        const validate = ajv.compile(schemaDefinition);
-        const isValid = validate(eventDetail);
-        
-        if (!isValid) {
-            console.error(`Schema validation failed for ${schemaName}:`, validate.errors);
-            return { isValid: false, errors: validate.errors as any[] };
-        }
-        
-        console.log(`Event validated successfully against schema ${schemaName}`);
-        return { isValid: true };
-        
-    } catch (error) {
-        console.error(`Schema validation error for ${schemaName}:`, error);
-        // Graceful degradation - don't fail the entire process
-        return { isValid: true };
-    }
-}
 
 export async function handler(event: S3Event, context: Context): Promise<void> {
     const startTime = Date.now();
@@ -101,9 +33,6 @@ export async function handler(event: S3Event, context: Context): Promise<void> {
     // Log environment configuration
     console.log(`[${requestId}] Configuration:`);
     console.log(`[${requestId}]   QUARANTINE_BUCKET: ${QUARANTINE_BUCKET}`);
-    console.log(`[${requestId}]   EVENT_BUS_NAME: ${EVENT_BUS_NAME}`);
-    console.log(`[${requestId}]   EVENT_SOURCE: ${EVENT_SOURCE}`);
-    console.log(`[${requestId}]   SCHEMA_REGISTRY_NAME: ${SCHEMA_REGISTRY_NAME}`);
     console.log(`[${requestId}]   MAX_FILE_SIZE: ${MAX_FILE_SIZE} bytes (${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB)`);
     console.log(`[${requestId}]   ALLOWED_MIME_TYPES: ${ALLOWED_MIME_TYPES.join(', ')}`);
 
@@ -137,17 +66,16 @@ export async function handler(event: S3Event, context: Context): Promise<void> {
                 console.log(`[${requestId}] MIME Type: ${validationResult.metadata?.mimeType}`);
                 console.log(`[${requestId}] Last Modified: ${validationResult.metadata?.lastModified}`);
                 
-                await publishDocumentValidatedEvent(bucket, key, validationResult, requestId);
+                await approveDocument(bucket, key, requestId);
                 validatedCount++;
-                console.log(`[${requestId}] Published validation success event for: ${key}`);
+                console.log(`[${requestId}] Document metadata updated to approved for: ${key}`);
             } else {
                 console.log(`[${requestId}] ❌ Document validation FAILED for: ${key}`);
                 console.log(`[${requestId}] Reason: ${validationResult.reason}`);
                 
                 await quarantineDocument(bucket, key, validationResult.reason!, requestId);
-                await publishDocumentQuarantinedEvent(bucket, key, validationResult.reason!, requestId);
                 quarantinedCount++;
-                console.log(`[${requestId}] Document quarantined and event published for: ${key}`);
+                console.log(`[${requestId}] Document quarantined for: ${key}`);
             }
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -157,7 +85,6 @@ export async function handler(event: S3Event, context: Context): Promise<void> {
             console.error(`[${requestId}] Stack trace:`, error instanceof Error ? error.stack : 'No stack trace');
             
             await rejectDocument(bucket, key, errorMessage, requestId);
-            await publishDocumentRejectedEvent(bucket, key, errorMessage, requestId);
             rejectedCount++;
         }
 
@@ -305,7 +232,7 @@ async function quarantineDocument(bucket: string, key: string, reason: string, r
             Bucket: bucket,
             Key: key
         });
-        const deleteResult = await s3Client.send(deleteCommand);
+        await s3Client.send(deleteCommand);
         console.log(`[${requestId}] ✅ Document deleted from original bucket`);
         
         const duration = Date.now() - startTime;
@@ -318,139 +245,96 @@ async function quarantineDocument(bucket: string, key: string, reason: string, r
     }
 }
 
+/**
+ * Approve a document by updating its validation metadata
+ */
+async function approveDocument(bucket: string, key: string, requestId: string): Promise<void> {
+    const startTime = Date.now();
+    const validatedAt = new Date().toISOString();
+    
+    console.log(`[${requestId}] Approving document: ${key}`);
+    
+    try {
+        // Get current object metadata
+        const headResponse = await s3Client.send(new HeadObjectCommand({
+            Bucket: bucket,
+            Key: key
+        }));
+
+        const currentMetadata = headResponse.Metadata || {};
+        
+        // Update metadata with validation approval
+        const updatedMetadata = {
+            ...currentMetadata,
+            'validation-status': 'approved',
+            'download-approved': 'true',
+            'validated-at': validatedAt,
+            'validated-by': 'auto-validation',
+            'validation-comments': 'Automatically approved after passing all validation checks'
+        };
+
+        // Copy object with new metadata
+        await s3Client.send(new CopyObjectCommand({
+            Bucket: bucket,
+            CopySource: `${bucket}/${key}`,
+            Key: key,
+            Metadata: updatedMetadata,
+            MetadataDirective: 'REPLACE'
+        }));
+
+        const duration = Date.now() - startTime;
+        console.log(`[${requestId}] ✅ Document approved and metadata updated in ${duration}ms`);
+        
+    } catch (error) {
+        const duration = Date.now() - startTime;
+        console.error(`[${requestId}] ❌ Failed to approve document after ${duration}ms:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Reject a document by updating its validation metadata
+ */
 async function rejectDocument(bucket: string, key: string, reason: string, requestId: string): Promise<void> {
-    // For rejected documents, we might want to keep them for debugging
-    // or delete them based on policy
-    console.log(`[${requestId}] 🚫 Document ${key} rejected: ${reason}`);
-    console.log(`[${requestId}] Document will remain in bucket for debugging purposes`);
-}
-
-async function publishDocumentValidatedEvent(bucket: string, key: string, validationResult: ValidationResult, requestId: string): Promise<void> {
-    const documentId = randomUUID();
-    const now = new Date().toISOString();
+    const startTime = Date.now();
+    const rejectedAt = new Date().toISOString();
     
-    const detail: DocumentValidatedDetail = {
-        documentId: documentId,
-        bucketName: bucket,
-        objectKey: key,
-        contentType: validationResult.metadata?.mimeType || 'application/octet-stream',
-        fileSize: validationResult.metadata?.contentLength || 0,
-        validatedAt: now,
-        metadata: {
-            originalFileName: key.split('/').pop() || key,
-            uploadedBy: 'system' // Could be extracted from S3 metadata if available
-        }
-    };
+    console.log(`[${requestId}] Rejecting document: ${key} - ${reason}`);
+    
+    try {
+        // Get current object metadata
+        const headResponse = await s3Client.send(new HeadObjectCommand({
+            Bucket: bucket,
+            Key: key
+        }));
 
-    // Validate event against schema before publishing
-    const schemaValidation = await validateEventAgainstSchema(detail, 'DocumentValidated');
-    if (!schemaValidation.isValid) {
-        console.error('Event validation failed:', schemaValidation.errors);
-        throw new Error(`Event does not conform to schema: ${JSON.stringify(schemaValidation.errors)}`);
+        const currentMetadata = headResponse.Metadata || {};
+        
+        // Update metadata with validation rejection
+        const updatedMetadata = {
+            ...currentMetadata,
+            'validation-status': 'rejected',
+            'download-approved': 'false',
+            'validated-at': rejectedAt,
+            'validated-by': 'auto-validation',
+            'validation-comments': reason
+        };
+
+        // Copy object with new metadata
+        await s3Client.send(new CopyObjectCommand({
+            Bucket: bucket,
+            CopySource: `${bucket}/${key}`,
+            Key: key,
+            Metadata: updatedMetadata,
+            MetadataDirective: 'REPLACE'
+        }));
+
+        const duration = Date.now() - startTime;
+        console.log(`[${requestId}] ✅ Document rejected and metadata updated in ${duration}ms`);
+        
+    } catch (error) {
+        const duration = Date.now() - startTime;
+        console.error(`[${requestId}] ❌ Failed to reject document after ${duration}ms:`, error);
+        throw error;
     }
-
-    // Get AWS context for account and region
-    const account = process.env.AWS_ACCOUNT_ID || 'unknown';
-    const region = process.env.AWS_REGION || 'unknown';
-    const validatedEvent = createDocumentValidatedEvent(account, region, detail);
-
-    const event = {
-        Time: new Date(),
-        Source: validatedEvent.source,
-        DetailType: validatedEvent['detail-type'],
-        EventBusName: EVENT_BUS_NAME,
-        Detail: JSON.stringify(validatedEvent.detail)
-    };
-
-    await eventBridgeClient.send(new PutEventsCommand({
-        Entries: [event]
-    }));
-}
-
-async function publishDocumentQuarantinedEvent(bucket: string, key: string, reason: string, requestId: string): Promise<void> {
-    const documentId = randomUUID();
-    const now = new Date().toISOString();
-    const quarantineKey = `quarantine/${now}/${key}`;
-    
-    // Determine quarantine code based on reason
-    let quarantineCode: DocumentQuarantinedDetail['quarantineCode'] = 'MANUAL_REVIEW_REQUIRED';
-    if (reason.toLowerCase().includes('suspicious') || reason.toLowerCase().includes('malware')) {
-        quarantineCode = 'SUSPICIOUS_CONTENT';
-    } else if (reason.toLowerCase().includes('policy') || reason.toLowerCase().includes('violation')) {
-        quarantineCode = 'POLICY_VIOLATION';
-    }
-    
-    const detail: DocumentQuarantinedDetail = {
-        documentId: documentId,
-        bucketName: QUARANTINE_BUCKET,
-        objectKey: quarantineKey,
-        quarantineReason: reason,
-        quarantineCode: quarantineCode,
-        quarantinedAt: now,
-        reviewRequired: true,
-        metadata: {
-            originalFileName: key.split('/').pop() || key,
-            riskScore: 50, // Default risk score, could be calculated based on validation
-            flaggedBy: 'validation-handler'
-        }
-    };
-
-    // Get AWS context for account and region
-    const account = process.env.AWS_ACCOUNT_ID || 'unknown';
-    const region = process.env.AWS_REGION || 'unknown';
-    const quarantinedEvent = createDocumentQuarantinedEvent(account, region, detail);
-
-    const event = {
-        Time: new Date(),
-        Source: quarantinedEvent.source,
-        DetailType: quarantinedEvent['detail-type'],
-        EventBusName: EVENT_BUS_NAME,
-        Detail: JSON.stringify(quarantinedEvent.detail)
-    };
-
-    await eventBridgeClient.send(new PutEventsCommand({
-        Entries: [event]
-    }));
-}
-
-async function publishDocumentRejectedEvent(bucket: string, key: string, reason: string, requestId: string): Promise<void> {
-    const documentId = randomUUID();
-    const now = new Date().toISOString();
-    
-    // Determine rejection code based on reason
-    let rejectionCode: DocumentRejectedDetail['rejectionCode'] = 'INVALID_FORMAT';
-    if (reason.toLowerCase().includes('size')) rejectionCode = 'TOO_LARGE';
-    if (reason.toLowerCase().includes('mime') || reason.toLowerCase().includes('type')) rejectionCode = 'UNSUPPORTED_TYPE';
-    if (reason.toLowerCase().includes('malware') || reason.toLowerCase().includes('virus')) rejectionCode = 'MALWARE_DETECTED';
-    
-    const detail: DocumentRejectedDetail = {
-        documentId: documentId,
-        bucketName: bucket,
-        objectKey: key,
-        rejectionReason: reason,
-        rejectionCode: rejectionCode,
-        rejectedAt: now,
-        metadata: {
-            originalFileName: key.split('/').pop() || key,
-            attemptedContentType: 'unknown',
-            fileSize: 0 // Could be extracted from S3 event if needed
-        }
-    };
-
-    // Get AWS context for account and region
-    const account = process.env.AWS_ACCOUNT_ID || 'unknown';
-    const region = process.env.AWS_REGION || 'unknown';
-    const rejectedEvent = createDocumentRejectedEvent(account, region, detail);
-
-    const event = {
-        Time: new Date(),
-        Source: rejectedEvent.source,
-        DetailType: rejectedEvent['detail-type'],
-        EventBusName: EVENT_BUS_NAME,
-        Detail: JSON.stringify(rejectedEvent.detail)
-    };
-
-    await eventBridgeClient.send(new PutEventsCommand({
-        Entries: [event]
-    }));
 } 

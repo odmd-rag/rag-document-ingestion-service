@@ -3,8 +3,8 @@ import {Construct} from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3Notifications from 'aws-cdk-lib/aws-s3-notifications';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as events from 'aws-cdk-lib/aws-events';
-import * as schemas from 'aws-cdk-lib/aws-eventschemas';
+import * as iam from 'aws-cdk-lib/aws-iam';
+// EventBridge imports removed - no longer needed
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import {HttpJwtAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
@@ -33,155 +33,22 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         const apiSubdomain = 'rag-api';
         this.apiDomain = `${apiSubdomain}.${zoneName}`;
 
-        // Create EventBridge custom bus for document events
-        const eventBus = new events.EventBus(this, 'DocumentEventBus', {
-            eventBusName: `rag-document-events-${this.account}-${this.region}`,
-        });
-
-        // Create EventBridge Schema Registry for RAG document events
-        const schemaRegistry = new schemas.CfnRegistry(this, 'RagDocumentSchemaRegistry', {
-            registryName: `rag-document-schemas-${this.account}-${this.region}`,
-            description: 'Schema registry for RAG document processing events',
-        });
-
-        // Define event schemas for contract compliance and debugging
-        const documentValidatedSchema = new schemas.CfnSchema(this, 'DocumentValidatedSchema', {
-            registryName: schemaRegistry.registryName!,
-            type: 'JSONSchemaDraft4',
-            schemaName: 'rag.document-ingestion.DocumentValidated',
-            description: 'Schema for successful document validation events',
-            content: JSON.stringify({
-                type: 'object',
-                properties: {
-                    version: { type: 'string', enum: ['0'] },
-                    id: { type: 'string' },
-                    'detail-type': { type: 'string', enum: ['Document Validated'] },
-                    source: { type: 'string', enum: ['rag.document-ingestion'] },
-                    account: { type: 'string' },
-                    time: { type: 'string', format: 'date-time' },
-                    region: { type: 'string' },
-                    detail: {
-                        type: 'object',
-                        properties: {
-                            documentId: { type: 'string', format: 'uuid' },
-                            bucketName: { type: 'string' },
-                            objectKey: { type: 'string' },
-                            contentType: { type: 'string' },
-                            fileSize: { type: 'number', minimum: 0 },
-                            validatedAt: { type: 'string', format: 'date-time' },
-                            metadata: {
-                                type: 'object',
-                                properties: {
-                                    originalFileName: { type: 'string' },
-                                    uploadedBy: { type: 'string' }
-                                }
-                            }
-                        },
-                        required: ['documentId', 'bucketName', 'objectKey', 'contentType', 'fileSize', 'validatedAt']
-                    }
-                },
-                required: ['version', 'id', 'detail-type', 'source', 'account', 'time', 'region', 'detail']
-            }),
-        });
-
-        const documentRejectedSchema = new schemas.CfnSchema(this, 'DocumentRejectedSchema', {
-            registryName: schemaRegistry.registryName!,
-            type: 'JSONSchemaDraft4',
-            schemaName: 'rag.document-ingestion.DocumentRejected',
-            description: 'Schema for document rejection events',
-            content: JSON.stringify({
-                type: 'object',
-                properties: {
-                    version: { type: 'string', enum: ['0'] },
-                    id: { type: 'string' },
-                    'detail-type': { type: 'string', enum: ['Document Rejected'] },
-                    source: { type: 'string', enum: ['rag.document-ingestion'] },
-                    account: { type: 'string' },
-                    time: { type: 'string', format: 'date-time' },
-                    region: { type: 'string' },
-                    detail: {
-                        type: 'object',
-                        properties: {
-                            documentId: { type: 'string', format: 'uuid' },
-                            bucketName: { type: 'string' },
-                            objectKey: { type: 'string' },
-                            rejectionReason: { type: 'string' },
-                            rejectionCode: { type: 'string', enum: ['INVALID_FORMAT', 'TOO_LARGE', 'MALWARE_DETECTED', 'UNSUPPORTED_TYPE'] },
-                            rejectedAt: { type: 'string', format: 'date-time' },
-                            metadata: {
-                                type: 'object',
-                                properties: {
-                                    originalFileName: { type: 'string' },
-                                    attemptedContentType: { type: 'string' },
-                                    fileSize: { type: 'number' }
-                                }
-                            }
-                        },
-                        required: ['documentId', 'bucketName', 'objectKey', 'rejectionReason', 'rejectionCode', 'rejectedAt']
-                    }
-                },
-                required: ['version', 'id', 'detail-type', 'source', 'account', 'time', 'region', 'detail']
-            }),
-        });
-
-        const documentQuarantinedSchema = new schemas.CfnSchema(this, 'DocumentQuarantinedSchema', {
-            registryName: schemaRegistry.registryName!,
-            type: 'JSONSchemaDraft4',
-            schemaName: 'rag.document-ingestion.DocumentQuarantined',
-            description: 'Schema for document quarantine events requiring manual review',
-            content: JSON.stringify({
-                type: 'object',
-                properties: {
-                    version: { type: 'string', enum: ['0'] },
-                    id: { type: 'string' },
-                    'detail-type': { type: 'string', enum: ['Document Quarantined'] },
-                    source: { type: 'string', enum: ['rag.document-ingestion'] },
-                    account: { type: 'string' },
-                    time: { type: 'string', format: 'date-time' },
-                    region: { type: 'string' },
-                    detail: {
-                        type: 'object',
-                        properties: {
-                            documentId: { type: 'string', format: 'uuid' },
-                            bucketName: { type: 'string' },
-                            objectKey: { type: 'string' },
-                            quarantineReason: { type: 'string' },
-                            quarantineCode: { type: 'string', enum: ['SUSPICIOUS_CONTENT', 'MANUAL_REVIEW_REQUIRED', 'POLICY_VIOLATION'] },
-                            quarantinedAt: { type: 'string', format: 'date-time' },
-                            reviewRequired: { type: 'boolean', enum: [true] },
-                            metadata: {
-                                type: 'object',
-                                properties: {
-                                    originalFileName: { type: 'string' },
-                                    riskScore: { type: 'number', minimum: 0, maximum: 100 },
-                                    flaggedBy: { type: 'string' }
-                                }
-                            }
-                        },
-                        required: ['documentId', 'bucketName', 'objectKey', 'quarantineReason', 'quarantineCode', 'quarantinedAt', 'reviewRequired']
-                    }
-                },
-                required: ['version', 'id', 'detail-type', 'source', 'account', 'time', 'region', 'detail']
-            }),
-        });
+        // EventBridge removed - downstream services will poll S3 directly
 
         // Create S3 bucket for document storage
         const documentBucket = new s3.Bucket(this, 'DocumentBucket', {
-            bucketName: `rag-documents-${this.account}-${this.region}`,
-            versioned: true,
+            versioned: false, // No versioning needed for timestamp-based keys
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             autoDeleteObjects: true,
         });
 
         // Create S3 bucket for quarantine
         const quarantineBucket = new s3.Bucket(this, 'QuarantineBucket', {
-            bucketName: `rag-quarantine-${this.account}-${this.region}`,
             versioned: true,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             autoDeleteObjects: true,
         });
 
-        // Document validation Lambda function
         const validationHandler = new NodejsFunction(this, 'ValidationHandler', {
             entry: __dirname + '/handlers/src/validation-handler.ts',
             runtime: lambda.Runtime.NODEJS_22_X,
@@ -192,8 +59,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             environment: {
                 DOCUMENT_BUCKET: documentBucket.bucketName,
                 QUARANTINE_BUCKET: quarantineBucket.bucketName,
-                EVENT_BUS_NAME: eventBus.eventBusName,
-                EVENT_SOURCE: 'rag.document-ingestion',
+                // Removed EVENT_BUS_NAME and EVENT_SOURCE - no EventBridge needed
             },
         });
 
@@ -201,10 +67,53 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         documentBucket.grantReadWrite(validationHandler);
         quarantineBucket.grantReadWrite(validationHandler);
 
-        // Grant EventBridge permissions
-        eventBus.grantPutEventsTo(validationHandler);
+        // Grant S3 permissions to processing service roles using account-level permissions
+        // This allows any role in the account with the pattern "rag-doc-processing-*" to access the buckets
+        documentBucket.addToResourcePolicy(new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            principals: [new iam.AccountPrincipal(this.account)],
+            actions: [
+                's3:ListBucket',
+                's3:GetObject',
+                's3:GetObjectAttributes'
+            ],
+            resources: [
+                documentBucket.bucketArn,
+                `${documentBucket.bucketArn}/*`
+            ],
+            conditions: {
+                'StringLike': {
+                    'aws:PrincipalArn': [
+                        `arn:aws:iam::${this.account}:role/rag-doc-processing-*`,
+                        `arn:aws:iam::${this.account}:role/*-rag-doc-processing-*` // CDK may prefix role names
+                    ]
+                }
+            }
+        }));
 
-        // S3 event trigger for validation
+        quarantineBucket.addToResourcePolicy(new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            principals: [new iam.AccountPrincipal(this.account)],
+            actions: [
+                's3:ListBucket',
+                's3:GetObject',
+                's3:GetObjectAttributes'
+            ],
+            resources: [
+                quarantineBucket.bucketArn,
+                `${quarantineBucket.bucketArn}/*`
+            ],
+            conditions: {
+                'StringLike': {
+                    'aws:PrincipalArn': [
+                        `arn:aws:iam::${this.account}:role/rag-doc-processing-*`,
+                        `arn:aws:iam::${this.account}:role/*-rag-doc-processing-*`
+                    ]
+                }
+            }
+        }));
+
+        // S3 event trigger for validation (still needed for basic validation)
         documentBucket.addEventNotification(
             s3.EventType.OBJECT_CREATED,
             new s3Notifications.LambdaDestination(validationHandler)
@@ -398,10 +307,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             description: 'ARN pattern for the RAG Document Ingestion HTTP API Gateway (includes $default stage)',
         });
 
-        new cdk.CfnOutput(this, 'EventBusArn', {
-            value: eventBus.eventBusArn,
-            exportName: `${this.stackName}-EventBus`,
-        });
+        // EventBus output removed - no longer needed
 
         // Output the actual API Gateway ID for troubleshooting
         new cdk.CfnOutput(this, 'HttpApiId', {
@@ -417,13 +323,9 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // OndemandEnv Producers - Share actual AWS resource values with other services
         new OdmdShareOut(
             this, new Map([
-                // EventBridge Bus - actual AWS resource name resolved at deployment
-                [myEnver.documentValidationEvents.eventBridge, eventBus.eventBusName],
-                
-                // EventBridge Schema ARNs - for schema validation and code generation
-                [myEnver.documentValidationEvents.documentValidatedSchema, documentValidatedSchema.attrSchemaArn],
-                [myEnver.documentValidationEvents.documentRejectedSchema, documentRejectedSchema.attrSchemaArn],
-                [myEnver.documentValidationEvents.documentQuarantinedSchema, documentQuarantinedSchema.attrSchemaArn],
+                // S3 bucket resources for downstream services to poll
+                [myEnver.documentStorageResources.documentBucket, documentBucket.bucketName],
+                [myEnver.documentStorageResources.quarantineBucket, quarantineBucket.bucketName],
                 
                 // Auth Callback URLs - dynamic URLs based on deployed domain
                 [myEnver.authCallbackUrl, `https://${props.webUiDomain}/index.html?callback`],

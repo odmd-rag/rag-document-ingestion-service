@@ -3,6 +3,7 @@ import {S3Client, PutObjectCommand} from '@aws-sdk/client-s3';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 import {ApiResponse, JWTClaims, UploadRequest, UploadResponse} from "./typing.js";
 import console from "node:console";
+import {createHash} from 'crypto';
 
 
 const s3 = new S3Client({});
@@ -63,9 +64,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const body = JSON.parse(event.body || '{}');
         const {fileName, fileType, fileSize} = validateRequest(body);
 
-        // Generate unique upload ID and S3 key
-        const uploadId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const objectKey = `uploads/${userId}/${uploadId}-${fileName}`;
+        // Generate timestamp-hash based key: [ISO timestamp]-[sha(timestamp + originalName + uploaderName)]
+        const timestamp = new Date().toISOString();
+        const hashInput = timestamp + fileName + (email || 'unknown');
+        const fileHash = createHash('sha256').update(hashInput).digest('hex');
+        const objectKey = `${timestamp}-${fileHash}`;
+        const uploadId = objectKey; // Use the same value for backward compatibility
 
         // Create pre-signed upload URL
         const command = new PutObjectCommand({
@@ -77,7 +81,15 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
                 'user-id': userId,
                 'user-email': email || 'unknown',
                 'original-filename': fileName,
-                'uploaded-at': new Date().toISOString()
+                'uploaded-at': timestamp,
+                'file-size': fileSize.toString(),
+                'content-type': fileType,
+                'hash-input': hashInput, // For debugging/verification
+                'timestamp': timestamp, // Duplicate for easy access
+                'validation-status': 'pending', // VALIDATION GATE: pending/approved/rejected
+                'download-approved': 'false', // Download permission flag
+                'validated-at': '', // Timestamp when validation completed
+                'validated-by': '' // Who approved/rejected the file
             }
         });
 
