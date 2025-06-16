@@ -64,11 +64,14 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         const body = JSON.parse(event.body || '{}');
         const {fileName, fileType, fileSize} = validateRequest(body);
 
-        // Generate timestamp-hash based key: [ISO timestamp]-[sha(timestamp + originalName + uploaderName)]
+        // Generate timestamp-hash based key: [ISO timestamp]-[sha(timestamp + originalName + uploaderName)].ext
         const timestamp = new Date().toISOString();
         const hashInput = timestamp + fileName + (email || 'unknown');
         const fileHash = createHash('sha256').update(hashInput).digest('hex');
-        const objectKey = `${timestamp}-${fileHash}`;
+        
+        // Extract file extension from original filename
+        const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
+        const objectKey = fileExtension ? `${timestamp}-${fileHash}.${fileExtension}` : `${timestamp}-${fileHash}`;
         const uploadId = objectKey; // Use the same value for backward compatibility
 
         // Create pre-signed upload URL
