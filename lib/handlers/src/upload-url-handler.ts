@@ -12,11 +12,30 @@ const s3 = new S3Client({});
 const UPLOAD_EXPIRES_IN = 900; // 15 minutes
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 const ALLOWED_TYPES = [
-    'application/pdf',
+    // Text files
     'text/plain',
     'text/markdown',
+    'text/csv',
+    'text/tab-separated-values',
+    'application/json',
+    'application/xml',
+    'text/html',
+    
+    // Advanced documents
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'application/vnd.oasis.opendocument.text',
+    'application/vnd.oasis.opendocument.presentation',
+    'application/vnd.oasis.opendocument.spreadsheet',
+    'application/rtf',
+    'application/x-iwork-pages-sffpages',
+    'application/x-iwork-numbers-sffnumbers',
+    'application/x-iwork-keynote-sffkey'
 ];
 
 function getUserClaims(event: APIGatewayProxyEventV2): JWTClaims {
@@ -35,7 +54,47 @@ function validateRequest(request: Partial<UploadRequest>): UploadRequest {
     if (fileSize > MAX_FILE_SIZE) throw new Error(`File size exceeds ${MAX_FILE_SIZE} bytes`);
     if (!ALLOWED_TYPES.includes(fileType)) throw new Error(`File type ${fileType} not allowed`);
 
+    // Validate that file extension matches the declared content type
+    const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
+    const expectedContentType = getExpectedContentType(fileExtension);
+    if (expectedContentType && expectedContentType !== fileType) {
+        throw new Error(`File extension .${fileExtension} does not match declared content type ${fileType}. Expected: ${expectedContentType}`);
+    }
+
     return {fileName, fileType, fileSize};
+}
+
+// Helper: Get expected content type from file extension
+function getExpectedContentType(extension: string): string | null {
+    const contentTypeMap: { [key: string]: string } = {
+        // Text files
+        'txt': 'text/plain',
+        'md': 'text/markdown',
+        'csv': 'text/csv',
+        'tsv': 'text/tab-separated-values',
+        'json': 'application/json',
+        'xml': 'application/xml',
+        'html': 'text/html',
+        'htm': 'text/html',
+        
+        // Advanced documents
+        'pdf': 'application/pdf',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'doc': 'application/msword',
+        'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'ppt': 'application/vnd.ms-powerpoint',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'xls': 'application/vnd.ms-excel',
+        'odt': 'application/vnd.oasis.opendocument.text',
+        'odp': 'application/vnd.oasis.opendocument.presentation',
+        'ods': 'application/vnd.oasis.opendocument.spreadsheet',
+        'rtf': 'application/rtf',
+        'pages': 'application/x-iwork-pages-sffpages',
+        'numbers': 'application/x-iwork-numbers-sffnumbers',
+        'key': 'application/x-iwork-keynote-sffkey'
+    };
+    
+    return contentTypeMap[extension] || null;
 }
 
 // Helper: Create response

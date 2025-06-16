@@ -10,13 +10,30 @@ const QUARANTINE_BUCKET = process.env.QUARANTINE_BUCKET!;
 // Validation configuration
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 const ALLOWED_MIME_TYPES = [
-    'application/pdf',
+    // Text files
     'text/plain',
     'text/markdown',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/csv',
+    'text/tab-separated-values',
+    'application/json',
+    'application/xml',
     'text/html',
-    'application/rtf'
+    
+    // Advanced documents
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'application/vnd.oasis.opendocument.text',
+    'application/vnd.oasis.opendocument.presentation',
+    'application/vnd.oasis.opendocument.spreadsheet',
+    'application/rtf',
+    'application/x-iwork-pages-sffpages',
+    'application/x-iwork-numbers-sffnumbers',
+    'application/x-iwork-keynote-sffkey'
 ];
 
 export async function handler(event: S3Event, context: Context): Promise<void> {
