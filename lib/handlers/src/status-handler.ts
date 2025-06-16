@@ -102,72 +102,94 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         location: 'unknown'
     };
 
+    // In the new architecture, files are stored directly in the bucket root with timestamp-hash keys
     // First, try to find the document in the main documents bucket
     console.log(`[${requestId}] Searching in main documents bucket: ${DOCUMENT_BUCKET}`);
-    const possibleKeys = [
-        `uploads/${userIdentityId}/${documentId}`,
-        `validated/${userIdentityId}/${documentId}`,
-        `uploads/${userIdentityId}/*${documentId}*`
-    ];
-
-    console.log(`[${requestId}] Checking possible key patterns:`, possibleKeys.filter(k => !k.includes('*')));
-
-    for (const [index, pattern] of possibleKeys.entries()) {
-        if (pattern.includes('*')) {
-            console.log(`[${requestId}] Skipping pattern with wildcard: ${pattern}`);
-            continue;
-        }
-
-        console.log(`[${requestId}] Checking key ${index + 1}/${possibleKeys.length}: ${pattern}`);
-        const metadata = await getDocumentMetadata(DOCUMENT_BUCKET, pattern, requestId);
-        if (metadata) {
-            console.log(`[${requestId}] ✅ Document found in main bucket!`);
-            result.status = 'validated';
-            result.location = 'documents';
-            result.fileName = metadata.Metadata?.['original-filename'];
-            result.fileSize = metadata.ContentLength;
-            result.uploadedAt = metadata.Metadata?.['upload-timestamp'];
-            result.validatedAt = metadata.LastModified?.toISOString();
-            result.userIdentityId = metadata.Metadata?.['user-identity-id'];
-
+    console.log(`[${requestId}] Checking key: ${documentId}`);
+    
+    const metadata = await getDocumentMetadata(DOCUMENT_BUCKET, documentId, requestId);
+    if (metadata) {
+        console.log(`[${requestId}] ✅ Document found in main bucket!`);
+        
+        // Check if the user owns this document
+        const documentUserId = metadata.Metadata?.['user-identity-id'];
+        if (documentUserId !== userIdentityId) {
+            console.log(`[${requestId}] ❌ Access denied: Document belongs to different user`);
+            console.log(`[${requestId}] Document user: ${documentUserId}, Request user: ${userIdentityId}`);
             const duration = Date.now() - startTime;
-            console.log(`[${requestId}] Document status check completed in ${duration}ms: VALIDATED`);
-            return result;
+            console.log(`[${requestId}] Document status check completed in ${duration}ms: ACCESS_DENIED`);
+            return {
+                documentId,
+                status: 'not_found', // Don't reveal existence to unauthorized users
+                location: 'unknown'
+            };
         }
+        
+        // Check validation status from metadata
+        const validationStatus = metadata.Metadata?.['validation-status'];
+        const downloadApproved = metadata.Metadata?.['download-approved'] === 'true';
+        
+        let status: DocumentStatus['status'];
+        if (validationStatus === 'approved' || downloadApproved) {
+            status = 'validated';
+        } else if (validationStatus === 'rejected') {
+            status = 'rejected';
+        } else {
+            status = 'pending'; // validation-status: pending or not set
+        }
+        
+        result.status = status;
+        result.location = 'documents';
+        result.fileName = metadata.Metadata?.['original-filename'];
+        result.fileSize = metadata.ContentLength;
+        result.uploadedAt = metadata.Metadata?.['upload-timestamp'];
+        result.userIdentityId = documentUserId;
+        
+        if (status === 'validated') {
+            result.validatedAt = metadata.Metadata?.['validation-timestamp'] || metadata.LastModified?.toISOString();
+        } else if (status === 'rejected') {
+            result.rejectedAt = metadata.Metadata?.['rejection-timestamp'] || metadata.LastModified?.toISOString();
+            result.errorMessage = metadata.Metadata?.['rejection-reason'];
+        }
+
+        const duration = Date.now() - startTime;
+        console.log(`[${requestId}] Document status check completed in ${duration}ms: ${status.toUpperCase()}`);
+        return result;
     }
 
-    // Check quarantine bucket
+    // Check quarantine bucket - quarantine files also use the flat structure
     console.log(`[${requestId}] Document not found in main bucket, checking quarantine: ${QUARANTINE_BUCKET}`);
-    const quarantineKeys = [
-        `quarantine/${userIdentityId}/${documentId}`,
-        `quarantine/${userIdentityId}/*${documentId}*`
-    ];
-
-    console.log(`[${requestId}] Checking quarantine key patterns:`, quarantineKeys.filter(k => !k.includes('*')));
-
-    for (const [index, pattern] of quarantineKeys.entries()) {
-        if (pattern.includes('*')) {
-            console.log(`[${requestId}] Skipping quarantine pattern with wildcard: ${pattern}`);
-            continue;
-        }
-
-        console.log(`[${requestId}] Checking quarantine key ${index + 1}/${quarantineKeys.length}: ${pattern}`);
-        const metadata = await getDocumentMetadata(QUARANTINE_BUCKET, pattern, requestId);
-        if (metadata) {
-            console.log(`[${requestId}] ✅ Document found in quarantine bucket!`);
-            result.status = metadata.Metadata?.['quarantine-reason'] ? 'quarantined' : 'rejected';
-            result.location = 'quarantine';
-            result.fileName = metadata.Metadata?.['original-filename'];
-            result.fileSize = metadata.ContentLength;
-            result.uploadedAt = metadata.Metadata?.['upload-timestamp'];
-            result.quarantinedAt = metadata.LastModified?.toISOString();
-            result.errorMessage = metadata.Metadata?.['quarantine-reason'] || metadata.Metadata?.['rejection-reason'];
-            result.userIdentityId = metadata.Metadata?.['user-identity-id'];
-
+    console.log(`[${requestId}] Checking quarantine key: ${documentId}`);
+    
+    const quarantineMetadata = await getDocumentMetadata(QUARANTINE_BUCKET, documentId, requestId);
+    if (quarantineMetadata) {
+        console.log(`[${requestId}] ✅ Document found in quarantine bucket!`);
+        
+        // Check if the user owns this document
+        const documentUserId = quarantineMetadata.Metadata?.['user-identity-id'];
+        if (documentUserId !== userIdentityId) {
+            console.log(`[${requestId}] ❌ Access denied: Quarantined document belongs to different user`);
             const duration = Date.now() - startTime;
-            console.log(`[${requestId}] Document status check completed in ${duration}ms: ${result.status.toUpperCase()}`);
-            return result;
+            console.log(`[${requestId}] Document status check completed in ${duration}ms: ACCESS_DENIED`);
+            return {
+                documentId,
+                status: 'not_found', // Don't reveal existence to unauthorized users
+                location: 'unknown'
+            };
         }
+        
+        result.status = 'quarantined';
+        result.location = 'quarantine';
+        result.fileName = quarantineMetadata.Metadata?.['original-filename'];
+        result.fileSize = quarantineMetadata.ContentLength;
+        result.uploadedAt = quarantineMetadata.Metadata?.['upload-timestamp'];
+        result.quarantinedAt = quarantineMetadata.LastModified?.toISOString();
+        result.errorMessage = quarantineMetadata.Metadata?.['quarantine-reason'];
+        result.userIdentityId = documentUserId;
+
+        const duration = Date.now() - startTime;
+        console.log(`[${requestId}] Document status check completed in ${duration}ms: QUARANTINED`);
+        return result;
     }
 
     const duration = Date.now() - startTime;
