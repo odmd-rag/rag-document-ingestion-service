@@ -126,8 +126,8 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         }
         
         // Check validation status from metadata
-        const validationStatus = metadata.Metadata?.['validation-status'];
-        const downloadApproved = metadata.Metadata?.['download-approved'] === 'true';
+        const validationStatus = metadata.Metadata?.['x-amz-meta-validation-status'];
+        const downloadApproved = metadata.Metadata?.['x-amz-meta-download-approved'] === 'true';
         
         let status: DocumentStatus['status'];
         if (validationStatus === 'approved' || downloadApproved) {
