@@ -146,8 +146,9 @@ async function validateDocument(bucket: string, key: string, size: number, reque
         console.log(`[${requestId}]   Last-Modified: ${response.LastModified}`);
         console.log(`[${requestId}]   ETag: ${response.ETag}`);
 
-        // MIME type validation
         const mimeType = response.ContentType || mime.lookup(key) || 'application/octet-stream';
+/*
+        // MIME type validation
         console.log(`[${requestId}] Detected MIME type: ${mimeType}`);
         console.log(`[${requestId}] Checking against allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`);
         
@@ -160,6 +161,7 @@ async function validateDocument(bucket: string, key: string, size: number, reque
             };
         }
         console.log(`[${requestId}] ✅ MIME type validation passed`);
+*/
 
         // Content validation (basic checks)
         const bodyStream = response.Body;
