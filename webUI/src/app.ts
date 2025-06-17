@@ -133,9 +133,9 @@ function showMainUI(user: any): void {
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
               <p>Drag & drop a document here or click to browse</p>
-              <p class="file-types">Supported: PDF, DOCX, TXT</p>
+              <p class="file-types">Supported: PDF, DOCX, DOC, PPTX, PPT, XLSX, XLS, TXT, MD, CSV, JSON, XML, HTML, RTF, ODT, ODP, ODS, Pages, Numbers, Keynote</p>
             </div>
-            <input type="file" id="fileInput" accept=".pdf,.docx,.txt" style="display: none;">
+            <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.txt,.md,.csv,.json,.xml,.html,.htm,.rtf,.odt,.odp,.ods,.pages,.numbers,.key" style="display: none;">
           </div>
           
           <div id="uploadProgress" class="upload-progress" style="display: none;">
@@ -212,9 +212,34 @@ async function handleFileUpload(file: File): Promise<void> {
     console.log('📤 Starting upload for:', file.name);
     
     // Validate file type
-    const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+    const allowedTypes = [
+      // Text files
+      'text/plain',
+      'text/markdown',
+      'text/csv',
+      'text/tab-separated-values',
+      'application/json',
+      'application/xml',
+      'text/html',
+      
+      // Advanced documents
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+      'application/vnd.oasis.opendocument.text',
+      'application/vnd.oasis.opendocument.presentation',
+      'application/vnd.oasis.opendocument.spreadsheet',
+      'application/rtf',
+      'application/x-iwork-pages-sffpages',
+      'application/x-iwork-numbers-sffnumbers',
+      'application/x-iwork-keynote-sffkey'
+    ];
     if (!allowedTypes.includes(file.type)) {
-      throw new Error('Unsupported file type. Please upload PDF, DOCX, or TXT files.');
+      throw new Error('Unsupported file type. Please upload a supported document format.');
     }
 
     // Validate file size (10MB limit)

@@ -288,7 +288,7 @@ Configure via CDK context or environment variables:
 {
   "documentRetentionDays": 90,
   "maxFileSize": "100MB",
-  "allowedFileTypes": ["pdf", "docx", "txt", "md"],
+  "allowedFileTypes": ["pdf", "docx", "doc", "pptx", "ppt", "xlsx", "xls", "txt", "md", "csv", "json", "xml", "html", "rtf", "odt", "odp", "ods", "pages", "numbers", "key"],
   "validationTimeout": 300
 }
 ```

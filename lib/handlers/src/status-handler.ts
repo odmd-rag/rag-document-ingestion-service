@@ -126,16 +126,27 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         }
         
         // Check validation status from metadata
-        const validationStatus = metadata.Metadata?.['x-amz-meta-validation-status'];
-        const downloadApproved = metadata.Metadata?.['x-amz-meta-download-approved'] === 'true';
+        // AWS S3 stores custom metadata without the x-amz-meta- prefix when reading back
+        const validationStatus = metadata.Metadata?.['validation-status'];
+        const downloadApproved = metadata.Metadata?.['download-approved'] === 'true';
+        
+        console.log(`[${requestId}] Validation metadata check:`);
+        console.log(`[${requestId}]   validation-status: ${validationStatus}`);
+        console.log(`[${requestId}]   download-approved: ${metadata.Metadata?.['download-approved']}`);
+        console.log(`[${requestId}]   validated-at: ${metadata.Metadata?.['validated-at']}`);
+        console.log(`[${requestId}]   validated-by: ${metadata.Metadata?.['validated-by']}`);
+        console.log(`[${requestId}]   validation-comments: ${metadata.Metadata?.['validation-comments']}`);
         
         let status: DocumentStatus['status'];
         if (validationStatus === 'approved' || downloadApproved) {
             status = 'validated';
+            console.log(`[${requestId}] ✅ Document status determined: VALIDATED`);
         } else if (validationStatus === 'rejected') {
             status = 'rejected';
+            console.log(`[${requestId}] ❌ Document status determined: REJECTED`);
         } else {
             status = 'pending'; // validation-status: pending or not set
+            console.log(`[${requestId}] ⏳ Document status determined: PENDING (validation-status: ${validationStatus || 'not set'})`);
         }
         
         result.status = status;
@@ -146,10 +157,10 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         result.userIdentityId = documentUserId;
         
         if (status === 'validated') {
-            result.validatedAt = metadata.Metadata?.['validation-timestamp'] || metadata.LastModified?.toISOString();
+            result.validatedAt = metadata.Metadata?.['validated-at'] || metadata.LastModified?.toISOString();
         } else if (status === 'rejected') {
-            result.rejectedAt = metadata.Metadata?.['rejection-timestamp'] || metadata.LastModified?.toISOString();
-            result.errorMessage = metadata.Metadata?.['rejection-reason'];
+            result.rejectedAt = metadata.Metadata?.['validated-at'] || metadata.LastModified?.toISOString();
+            result.errorMessage = metadata.Metadata?.['validation-comments'];
         }
 
         const duration = Date.now() - startTime;
@@ -210,7 +221,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     const startTime = Date.now();
     const requestId = event.requestContext.requestId;
 
-    const {sub: userId, email} = getUserClaims(event);
+    const {sub: userId} = getUserClaims(event);
 
     console.log(`[${requestId}] === Document Status Handler Started ===`);
     console.log(`[${requestId}] Stage: ${event.requestContext.stage}`);

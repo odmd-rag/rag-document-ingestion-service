@@ -84,8 +84,9 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             conditions: {
                 'StringLike': {
                     'aws:PrincipalArn': [
-                        `arn:aws:iam::${this.account}:role/rag-doc-processing-*`,
-                        `arn:aws:iam::${this.account}:role/*-rag-doc-processing-*` // CDK may prefix role names
+                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-S3PollerHandler*`,
+                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-DocumentProcessorHandler*`,
+                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-AdvancedDocumentProcessor*`
                     ]
                 }
             }
@@ -106,8 +107,9 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             conditions: {
                 'StringLike': {
                     'aws:PrincipalArn': [
-                        `arn:aws:iam::${this.account}:role/rag-doc-processing-*`,
-                        `arn:aws:iam::${this.account}:role/*-rag-doc-processing-*`
+                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-S3PollerHandler*`,
+                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-DocumentProcessorHandler*`,
+                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-AdvancedDocumentProcessor*`
                     ]
                 }
             }

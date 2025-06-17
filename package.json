@@ -42,7 +42,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@odmd-rag/contracts-lib-rag": "1.0.11",
+    "@odmd-rag/contracts-lib-rag": "1.0.12s",
     "@types/aws-lambda": "^8.10.119",
     "@types/jest": "^29.5.14",
     "@types/mime-types": "^2.1.1",

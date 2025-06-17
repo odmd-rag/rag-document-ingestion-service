@@ -1,9 +1,8 @@
 import { S3Event, Context } from 'aws-lambda';
-import { handler } from '../../lib/handlers/validation-handler';
+import { handler } from '../../lib/handlers/src/validation-handler';
 
 // Mock AWS SDK
 jest.mock('@aws-sdk/client-s3');
-jest.mock('@aws-sdk/client-eventbridge');
 
 describe('Validation Handler', () => {
     const mockContext: Context = {
@@ -24,8 +23,6 @@ describe('Validation Handler', () => {
     beforeEach(() => {
         process.env.DOCUMENT_BUCKET = 'test-document-bucket';
         process.env.QUARANTINE_BUCKET = 'test-quarantine-bucket';
-        process.env.EVENT_BUS_NAME = 'test-event-bus';
-        process.env.EVENT_SOURCE = 'test.event.source';
     });
 
     afterEach(() => {
@@ -80,22 +77,10 @@ describe('Validation Handler', () => {
             Body: 'mock-body'
         };
 
-        // Mock EventBridge PutEvents response
-        const mockEventBridgeResponse = {
-            FailedEntryCount: 0,
-            Entries: [
-                {
-                    EventId: 'test-event-id'
-                }
-            ]
-        };
-
         // Setup mocks
         const { S3Client } = require('@aws-sdk/client-s3');
-        const { EventBridgeClient } = require('@aws-sdk/client-eventbridge');
 
         S3Client.prototype.send = jest.fn().mockResolvedValue(mockS3Response);
-        EventBridgeClient.prototype.send = jest.fn().mockResolvedValue(mockEventBridgeResponse);
 
         // Execute handler
         await expect(handler(s3Event, mockContext)).resolves.toBeUndefined();
