@@ -1,18 +1,18 @@
 # RAG Document Ingestion Service
 
-A serverless AWS CDK service for secure document ingestion in a Retrieval-Augmented Generation (RAG) system, built on the OndemandEnv platform.
+A serverless AWS CDK service for secure document ingestion in a Retrieval-Augmented Generation (RAG) system, built on the OndemandEnv platform. In the **hybrid architecture**, documents flow through the processing pipeline to ultimately be stored as vectors in a cost-effective home vector server, providing 85% overall cost savings while maintaining enterprise security.
 
 ## 🏗️ Architecture Overview
 
 ![Architecture Diagram](https://mermaid.live/view/graph%20TB%0A%20%20%20%20subgraph%20%22Client%20Layer%22%0A%20%20%20%20%20%20%20%20WEB%5B%22Web%20Application%22%5D%0A%20%20%20%20%20%20%20%20MOB%5B%22Mobile%20App%22%5D%0A%20%20%20%20%20%20%20%20API_CLIENT%5B%22API%20Client%22%5D%0A%20%20%20%20end%0A%0A%20%20%20%20subgraph%20%22Authentication%20Layer%22%0A%20%20%20%20%20%20%20%20COGNITO_UP%5B%22Cognito%20User%20Pool%3Cbr%2F%3E%28User%20Auth%20Service%29%22%5D%0A%20%20%20%20%20%20%20%20COGNITO_IP%5B%22Cognito%20Identity%20Pool%3Cbr%2F%3E%28Auth%20Stack%29%22%5D%0A%20%20%20%20%20%20%20%20IAM_ROLE%5B%22Upload%20IAM%20Role%3Cbr%2F%3E%28odmd-rag-uploader%20group%29%22%5D%0A%20%20%20%20end%0A%0A%20%20%20%20subgraph%20%22API%20Gateway%20Layer%22%0A%20%20%20%20%20%20%20%20HTTP_API%5B%22HTTP%20API%20Gateway%3Cbr%2F%3E%28IAM%20Auth%29%22%5D%0A%20%20%20%20%20%20%20%20IAM_AUTH%5B%22HttpIamAuthorizer%22%5D%0A%20%20%20%20end%0A%0A%20%20%20%20subgraph%20%22Lambda%20Functions%22%0A%20%20%20%20%20%20%20%20UPLOAD_LAMBDA%5B%22Upload%20URL%20Handler%3Cbr%2F%3E%28Pre-signed%20URLs%29%22%5D%0A%20%20%20%20%20%20%20%20STATUS_LAMBDA%5B%22Status%20Handler%3Cbr%2F%3E%28Document%20Status%29%22%5D%0A%20%20%20%20%20%20%20%20VALIDATION_LAMBDA%5B%22Validation%20Handler%3Cbr%2F%3E%28Document%20Processing%29%22%5D%0A%20%20%20%20end%0A%0A%20%20%20%20subgraph%20%22Storage%20Layer%22%0A%20%20%20%20%20%20%20%20S3_DOCS%5B%22Document%20Bucket%3Cbr%2F%3E%28rag-documents%29%22%5D%0A%20%20%20%20%20%20%20%20S3_QUAR%5B%22Quarantine%20Bucket%3Cbr%2F%3E%28rag-quarantine%29%22%5D%0A%20%20%20%20end%0A%0A%20%20%20%20subgraph%20%22Event%20Layer%22%0A%20%20%20%20%20%20%20%20EVENT_BUS%5B%22EventBridge%20Bus%3Cbr%2F%3E%28Document%20Events%29%22%5D%0A%20%20%20%20end%0A%0A%20%20%20%20subgraph%20%22Downstream%20Services%22%0A%20%20%20%20%20%20%20%20DOC_PROC%5B%22Document%20Processing%3Cbr%2F%3EService%22%5D%0A%20%20%20%20%20%20%20%20EMBED%5B%22Embedding%3Cbr%2F%3EService%22%5D%0A%20%20%20%20%20%20%20%20VECTOR%5B%22Vector%20Storage%3Cbr%2F%3EService%22%5D%0A%20%20%20%20end)
 
-This service is part of a 6-service RAG architecture:
+This service is part of a 6-service **hybrid RAG architecture**:
 1. **Document Ingestion** (this service) - Secure document upload and validation
 2. Document Processing - Extract and process document content  
-3. Embedding - Generate vector embeddings
-4. Vector Storage - Store embeddings in vector database
-5. Knowledge Retrieval - Search and retrieve relevant content
-6. Generation - Generate responses using retrieved context
+3. Embedding - Generate vector embeddings via AWS Bedrock
+4. **Vector Storage** - **Secure proxy to home vector server** (98% cost savings)
+5. **Knowledge Retrieval** - Smart proxy with query enhancement and context ranking
+6. Generation - Generate responses using retrieved context via AWS Bedrock
 
 ### Service Components
 
