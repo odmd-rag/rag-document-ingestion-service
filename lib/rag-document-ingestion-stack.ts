@@ -4,7 +4,6 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3Notifications from 'aws-cdk-lib/aws-s3-notifications';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
-// EventBridge imports removed - no longer needed
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import {HttpJwtAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
@@ -30,7 +29,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // Use the same domain setup as web hosting
         const zoneName = props.zoneName;
         const hostedZoneId = props.hostedZoneId;
-        const apiSubdomain = 'rag-api';
+        const apiSubdomain = 'upload-api.' + myEnver.targetRevision.value + '.' + myEnver.owner.buildId
         this.apiDomain = `${apiSubdomain}.${zoneName}`;
 
         // EventBridge removed - downstream services will poll S3 directly
@@ -203,7 +202,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
                     'Content-Type',
                     'X-Amz-Date',
                     'X-Amz-Target',
-                    'Authorization', 
+                    'Authorization',
                     'X-Api-Key',
                     'X-Amz-Security-Token',
                     'X-Amz-User-Agent',
@@ -221,7 +220,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
                 exposeHeaders: ['Date', 'X-Amzn-ErrorType'],
                 maxAge: cdk.Duration.hours(1),
             },
-            
+
         });
 
         // API endpoints - will use default IAM authorizer
@@ -328,7 +327,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
                 // S3 bucket resources for downstream services to poll
                 [myEnver.documentStorageResources.documentBucket, documentBucket.bucketName],
                 [myEnver.documentStorageResources.quarantineBucket, quarantineBucket.bucketName],
-                
+
                 // Auth Callback URLs - dynamic URLs based on deployed domain
                 [myEnver.authCallbackUrl, `https://${props.webUiDomain}/index.html?callback`],
                 [myEnver.logoutUrl, `https://${props.webUiDomain}/index.html?logout`],
