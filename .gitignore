@@ -1,58 +1,92 @@
-# Logs
-*.log
+# Dependencies
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Dependencies
-node_modules/
-.npm
-
 # Build outputs
 dist/
 build/
+lib/
 *.tsbuildinfo
+
+# TypeScript
+*.js
+*.js.map
+*.d.ts
+!jest.config.js
+!*.config.js
 
 # CDK
 cdk.out/
-.cdk.staging
+cdk.context.json
 
-# Coverage directory used by tools like istanbul
-coverage/
+# AWS
+.aws/
 
-# Environment files
+# Environment variables
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Lambda layers
+lambda-layers/
+
+# WebUI build
+webUI/dist/
+webUI/build/
+webUI/node_modules/
+
+# Optional REPL history
+.node_repl_history
+
+# Yarn Integrity file
+.yarn-integrity
+
+# Serverless directories
+.serverless/
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Testing
-.nyc_output
-
-# Temporary folders
+# Temporary files
 tmp/
-temp/
-
-# Package files
-*.tgz
-*.tar.gz
-
-# AWS
-.aws/ 
+temp/ 
