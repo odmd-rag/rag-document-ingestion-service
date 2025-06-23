@@ -14,7 +14,6 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "cdk": "cdk",
     "ragDocumentIngestion-cdk-ls": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev-_b..dev1 cdk ls --show-dependencies --profile odmd-rag-ws1",
     "ragDocumentIngestion-cdk-ls-deps": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev-_b..dev1 cdk ls --show-dependencies --profile odmd-rag-ws1",
     "ragDocumentIngestion-cdk-synth": "tsc --build && cross-env ODMD_build_id=ragDocumentIngestion ODMD_rev_ref=b..dev-_b..dev1 cdk synth --all -vv --profile odmd-rag-ws1",
