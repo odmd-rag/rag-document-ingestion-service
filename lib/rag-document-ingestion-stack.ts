@@ -249,18 +249,23 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         });
 
 
-        const domainName = new apigatewayv2.DomainName(this, 'ApiDomainName', {
+        const certificate = new Certificate(this, 'ApiCertificate', {
             domainName: this.apiDomain,
-            certificate: new Certificate(this, 'ApiCertificate', {
-                domainName: this.apiDomain,
-                validation: CertificateValidation.fromDns(hostedZone),
-            }),
+            validation: CertificateValidation.fromDns(hostedZone),
         });
 
-        new apigatewayv2.ApiMapping(this, 'ApiMapping', {
+        const domainName = new apigatewayv2.DomainName(this, 'ApiDomainName', {
+            domainName: this.apiDomain,
+            certificate,
+        });
+
+        const apiMapping = new apigatewayv2.ApiMapping(this, 'ApiMapping', {
             api: this.httpApi,
             domainName: domainName,
         });
+
+        apiMapping.node.addDependency(certificate);
+        apiMapping.node.addDependency(domainName);
 
         new ARecord(this, 'ApiAliasRecord', {
             zone: hostedZone,
