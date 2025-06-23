@@ -29,7 +29,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         // Use the same domain setup as web hosting
         const zoneName = props.zoneName;
         const hostedZoneId = props.hostedZoneId;
-        const apiSubdomain = 'upload-api.' + myEnver.targetRevision.value + '.' + myEnver.owner.buildId
+        const apiSubdomain = 'up-api.' + myEnver.targetRevision.value + '.' + myEnver.owner.buildId
         this.apiDomain = `${apiSubdomain}.${zoneName}`;
 
         // EventBridge removed - downstream services will poll S3 directly
