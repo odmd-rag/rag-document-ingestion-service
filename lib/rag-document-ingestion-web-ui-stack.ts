@@ -43,6 +43,11 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
         const clientId = this.myEnver.authProviderClientId.getSharedValue(this);
         const providerName = this.myEnver.authProviderName.getSharedValue(this);
 
+        // Get service status API endpoints from contracts
+        const processingStatusEndpoint = this.myEnver.processingStatusApiEndpoint.getSharedValue(this);
+        const embeddingStatusEndpoint = this.myEnver.embeddingStatusApiEndpoint.getSharedValue(this);
+        const vectorStorageStatusEndpoint = this.myEnver.vectorStorageStatusApiEndpoint.getSharedValue(this);
+
         // Build configuration object
         const configObject = {
             aws: {
@@ -60,6 +65,11 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
                 timestamp: now,
                 version: '1.0.0',
                 webDomain: this.webHostingStack.webSubFQDN,
+            },
+            services: {
+                processing: processingStatusEndpoint,
+                embedding: embeddingStatusEndpoint,
+                vectorStorage: vectorStorageStatusEndpoint,
             }
         };
 
@@ -102,13 +112,31 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
 - **Auth Provider**: ${providerName}
 - **Deployment Time**: ${now}
 
+## Service Endpoints (Auto-Generated via Contracts)
+
+- **Ingestion Service**: https://${this.mainStack.apiDomain}
+- **Processing Service**: ${processingStatusEndpoint.replace('/status', '')}
+- **Embedding Service**: ${embeddingStatusEndpoint.replace('/status', '')}
+- **Vector Storage Service**: ${vectorStorageStatusEndpoint.replace('/status', '')}
+
 ## Configuration Status
 
 ✅ **Automatic Configuration Completed**
 - Google OAuth Client ID automatically retrieved from user-auth service contracts
+- Service endpoints automatically discovered via OndemandEnv contracts
 - Cognito Identity Pool configured with group-based access control
 - API Gateway IAM authentication configured
 - All authentication components wired through OndemandEnv shared values
+
+## Pipeline Status Tracking
+
+The web UI now supports comprehensive pipeline tracking:
+- ✅ Document upload status (ingestion service)
+- ✅ Content processing status (processing service)  
+- ✅ Text embedding status (embedding service)
+- ✅ Vector storage status (vector storage service)
+- ✅ Real-time progress visualization
+- ✅ Stage-by-stage error reporting
 
 ## User Access Configuration
 
@@ -119,15 +147,16 @@ Users must be added to the **"odmd-rag-uploader"** group in Cognito to upload do
 1. Visit: https://${this.webHostingStack.webSubFQDN}
 2. Sign in with Google (via user-auth service)
 3. Upload a test document
-4. Monitor status in the UI
+4. Monitor status in the UI with full pipeline visibility
 
 ## Troubleshooting
 
 If uploads fail:
 1. **Check Group Membership**: Verify the user is in the "odmd-rag-uploader" group
 2. **Check Auth Service**: Ensure the user-auth service is deployed and accessible
-3. **Check Browser Console**: Look for authentication or API errors
-4. **Verify CORS**: Check API Gateway CORS configuration for your domain
+3. **Check Service Endpoints**: Verify all pipeline services are deployed and accessible
+4. **Check Browser Console**: Look for authentication or API errors
+5. **Verify CORS**: Check API Gateway CORS configuration for your domain
 
 ## Architecture
 
@@ -135,6 +164,7 @@ This web UI integrates with the RAG system through:
 - **Authentication**: User-auth service via OndemandEnv contracts
 - **File Upload**: Direct to S3 via pre-signed URLs from this service
 - **Document Processing**: Automated pipeline through EventBridge
+- **Status Tracking**: Real-time monitoring across all pipeline services
 - **Access Control**: Cognito Identity Pool with IAM role mapping
 `;
 
@@ -177,6 +207,11 @@ This web UI integrates with the RAG system through:
         new cdk.CfnOutput(this, 'ConfiguredApiEndpoint', {
             value: `https://${this.mainStack.apiDomain}`,
             description: 'API endpoint configured in web UI',
+        });
+
+        new cdk.CfnOutput(this, 'ServiceEndpoints', {
+            value: `Processing: ${processingStatusEndpoint.replace('/status', '')}, Embedding: ${embeddingStatusEndpoint.replace('/status', '')}, Vector: ${vectorStorageStatusEndpoint.replace('/status', '')}`,
+            description: 'Service endpoints configured via contracts',
         });
     }
 } 
