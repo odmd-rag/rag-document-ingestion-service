@@ -112,7 +112,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         console.log(`[${requestId}] ✅ Document found in main bucket!`);
         
         // Check if the user owns this document
-        const documentUserId = metadata.Metadata?.['user-identity-id'];
+        const documentUserId = metadata.Metadata?.['user-id'];
         if (documentUserId !== userIdentityId) {
             console.log(`[${requestId}] ❌ Access denied: Document belongs to different user`);
             console.log(`[${requestId}] Document user: ${documentUserId}, Request user: ${userIdentityId}`);
@@ -177,7 +177,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         console.log(`[${requestId}] ✅ Document found in quarantine bucket!`);
         
         // Check if the user owns this document
-        const documentUserId = quarantineMetadata.Metadata?.['user-identity-id'];
+        const documentUserId = quarantineMetadata.Metadata?.['user-id'];
         if (documentUserId !== userIdentityId) {
             console.log(`[${requestId}] ❌ Access denied: Quarantined document belongs to different user`);
             const duration = Date.now() - startTime;
