@@ -1,97 +1,80 @@
 import { defineConfig, devices } from '@playwright/test';
+import { getGlobalChromeArgs, getVncEnvironment, GLOBAL_CONFIG } from './tests/config/browser-positioning';
 
 /**
- * Playwright configuration for RAG Pipeline Validation
- * Optimized for OAuth-compatible Chrome testing in VNC environment
+ * Playwright Configuration for VNC Remote Development Environment
+ * 
+ * Using centralized, strongly-typed configuration from ./src/config/browser-positioning.ts
+ * 
+ * VNC Environment: TigerVNC at 192.168.2.148:5901 (2560x1440)
+ * Browser positioned at (${GLOBAL_CONFIG.position.x}, ${GLOBAL_CONFIG.position.y}) 
+ * with size ${GLOBAL_CONFIG.size.width}x${GLOBAL_CONFIG.size.height}
+ * 
  * @see https://playwright.dev/docs/test-configuration
  */
-
 export default defineConfig({
-  // Test directory
   testDir: './tests',
   
   // Timeout configurations
-  timeout: 900000, // 15 minutes for full pipeline processing
-  expect: {
-    timeout: 10000,
-  },
+  timeout: 30000,
+  expect: { timeout: 10000 },
   
-  // Run tests in files in parallel
+  // Parallel execution settings
   fullyParallel: true,
-  
-  // Fail the build on CI if you accidentally left test.only in the source code
   forbidOnly: !!process.env.CI,
-  
-  // Retry on CI only
   retries: process.env.CI ? 2 : 0,
-  
-  // Opt out of parallel tests on CI
   workers: process.env.CI ? 1 : undefined,
   
-  // Reporter to use
+  // Reporter configuration
   reporter: [
-    ['html', { open: 'never' }], // Don't auto-open in VNC
+    ['html', { open: 'never' }], // Don't auto-open in VNC environment
     ['line'],
   ],
   
-  // Global setup for VNC environment
+  // Global configuration for VNC environment
   use: {
-    // Base URL for static testing (will use file:// URLs)
-    baseURL: 'file://' + process.cwd(),
-    
-    // Global test timeout
-    actionTimeout: 10000,
-    
-    // Capture screenshot only on failure
-    screenshot: 'only-on-failure',
-    
-    // Record video only on failure
-    video: 'retain-on-failure',
-    
-    // Collect trace on failure
-    trace: 'retain-on-failure',
-    
-    // Viewport size
-    viewport: { width: 1280, height: 720 },
-  },
-
-  // Single project configuration for OAuth-compatible Chrome
-  projects: [
-    {
-      name: 'chromium-oauth',
-      use: { 
-        ...devices['Desktop Chrome'],
-        // OAuth-compatible Chrome with persistent context for RAG pipeline testing
-        channel: undefined,
-        launchOptions: {
-          headless: false,
-          executablePath: '/usr/bin/google-chrome',
-          slowMo: 100,
-          args: [
-            '--disable-dev-shm-usage',
-            '--disable-web-security',
-            '--disable-features=TranslateUI',
-            '--disable-ipc-flooding-protection',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-gpu',
-            '--window-size=1280,720',
-            '--display=:1',
-            '--disable-blink-features=AutomationControlled', // Prevent automation detection
-            '--disable-extensions', // Disable all extensions
-            '--disable-default-apps',
-            '--remote-debugging-port=9222' // Enable remote debugging
-          ],
-          env: {
-            ...process.env,
-            DISPLAY: ':1',
-            XAUTHORITY: process.env.HOME + '/.Xauthority',
-          },
-        },
+    // Browser launch options with centralized configuration
+    launchOptions: {
+      headless: false,
+      executablePath: '/usr/bin/google-chrome',
+      slowMo: 100, // Slow down for better VNC rendering
+      args: getGlobalChromeArgs(),
+      env: {
+        ...process.env,
+        ...getVncEnvironment(),
       },
     },
+    
+    // Test configuration matching window size
+    viewport: { 
+      width: GLOBAL_CONFIG.size.width, 
+      height: GLOBAL_CONFIG.size.height 
+    },
+    baseURL: 'file://' + process.cwd(),
+    actionTimeout: 10000,
+    
+    // Media capture settings
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure', 
+    trace: 'retain-on-failure',
+  },
+
+  // Browser projects
+  projects: [
+    {
+      name: 'chromium-vnc',
+      use: { 
+        ...devices['Desktop Chrome'],
+        viewport: { 
+          width: GLOBAL_CONFIG.size.width, 
+          height: GLOBAL_CONFIG.size.height 
+        },
+        channel: undefined, // Use executablePath instead of channel
+      },
+    },
+    
+    // Additional browsers (uncomment if needed for cross-browser testing)
+    // { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    // { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
 }); 

@@ -1,8 +1,7 @@
 {
   "aws": {
     "region": "us-east-2",
-    "identityPoolId": "us-east-2:b966b4b4-4c54-494a-9e7d-eb41bd0b36d6",
-    "apiEndpoint": "https://rag-api.rag-ws1.root.ondemandenv.link"
+    "apiEndpoint": "https://up-api.dev.ragingest.rag-ws1.root.ondemandenv.link"
   },
   "google": {
     "clientId": "2pc2125m36vfh355ug3vv0jkm3"
@@ -12,8 +11,13 @@
     "userPoolDomain": "rag-ws1.root.ondemandenv.link"
   },
   "deployment": {
-    "timestamp": "2025-06-10T11:52:04.776Z",
+    "timestamp": "2025-06-25T21:46:40.361Z",
     "version": "1.0.0",
-    "webDomain": "rag-upload.rag-ws1.root.ondemandenv.link"
+    "webDomain": "up-web.dev.ragingest.rag-ws1.root.ondemandenv.link"
+  },
+  "services": {
+    "processing": "https://proc-api.dev.ragproc.rag-ws1.root.ondemandenv.link/status",
+    "embedding": "https://eb-api.dev.ragembed.rag-ws1.root.ondemandenv.link/status",
+    "vectorStorage": "https://vs-api.dev.ragstore.rag-ws1.root.ondemandenv.link/status"
   }
 }

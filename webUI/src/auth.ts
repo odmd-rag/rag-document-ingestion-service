@@ -1,4 +1,4 @@
-import {type Config, getConfig} from './config.js';
+import {type Config, getConfig} from './config.ts';
 
 export interface UserInfo {
     name: string;
@@ -184,4 +184,53 @@ export class AuthService {
         // Redirect to clean URL
         window.location.href = '/';
     }
+
+    // Direct JWT authentication for testing purposes
+    async authenticateWithJWT(jwtToken: string): Promise<UserInfo> {
+        try {
+            // Basic JWT validation - check if it has 3 parts
+            const parts = jwtToken.split('.');
+            if (parts.length !== 3) {
+                throw new Error('Invalid JWT format: Token must have 3 parts separated by dots');
+            }
+
+            // Parse the payload to extract user info
+            const payload = JSON.parse(atob(parts[1]));
+            console.log('🔍 JWT payload:', payload);
+
+            // Check if token is expired
+            const currentTime = Math.floor(Date.now() / 1000);
+            if (payload?.exp && payload.exp < currentTime) {
+                throw new Error('Token has expired');
+            }
+
+            // Extract user information
+            this.userInfo = {
+                name: payload.name || payload.given_name + ' ' + payload.family_name || 'Test User',
+                email: payload.email || 'test@example.com',
+                groups: payload['cognito:groups'] || payload.groups || ['odmd-rag-uploader'] // Default to having the required group for testing
+            };
+
+            this._idToken = jwtToken;
+
+            console.log('🔍 Extracted user info from JWT:', this.userInfo);
+
+            // Check if user has required group membership for RAG uploads
+            if (!this.userInfo.groups?.includes('odmd-rag-uploader')) {
+                console.error('❌ User groups:', this.userInfo.groups);
+                console.error('❌ Required group: odmd-rag-uploader');
+                throw new Error('Access denied: You must be a member of the "odmd-rag-uploader" group to upload documents.');
+            }
+
+            // Store tokens for future use
+            localStorage.setItem('id_token', this._idToken);
+            localStorage.setItem('user_info', JSON.stringify(this.userInfo));
+
+            return this.userInfo;
+        } catch (error) {
+            console.error('❌ JWT authentication failed:', error);
+            throw error;
+        }
+    }
+
 }

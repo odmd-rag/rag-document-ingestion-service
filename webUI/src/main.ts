@@ -1,4 +1,4 @@
 import './style.css'
-import './app.js'
+import './app.ts'
 
-// The app.js file handles initialization via DOMContentLoaded event listener
+// The app.ts file handles initialization via DOMContentLoaded event listener

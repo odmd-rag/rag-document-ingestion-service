@@ -1,6 +1,6 @@
-import { AuthService } from './auth.js';
-import { DocumentService } from './documentService.js';
-import { loadConfig } from './config.js';
+import { AuthService } from './auth.ts';
+import { DocumentService, type PipelineStatus } from './documentService.ts';
+import { loadConfig } from './config.ts';
 
 // Global state
 let authService: AuthService;
@@ -78,7 +78,9 @@ function showSignInUI(): void {
       <div class="auth-section">
         <div class="sign-in-card">
           <h2>Sign In Required</h2>
-          <p>Please sign in with your Google account to access the document upload service.</p>
+          <p>Please sign in with your Google account or use a JWT token for testing.</p>
+          
+          <!-- Google Sign-in -->
           <button id="signInBtn" class="google-sign-in-btn">
             <svg width="20" height="20" viewBox="0 0 24 24">
               <path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -88,6 +90,16 @@ function showSignInUI(): void {
             </svg>
             Sign in with Google
           </button>
+
+          <!-- JWT Token Sign-in for Testing -->
+          <div class="jwt-section">
+            <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+            <h3 style="margin-bottom: 15px; color: #666; font-size: 1rem;">For Testing: JWT Token Authentication</h3>
+            <textarea id="jwtInput" class="jwt-input" placeholder="Paste your JWT token here..."></textarea>
+            <button id="jwtSignInBtn" class="jwt-sign-in-btn">Sign in with JWT</button>
+            <div id="jwtError" class="jwt-error" style="display: none;"></div>
+          </div>
+
           <div class="info-section">
             <p class="note">
               <strong>Note:</strong> You must be a member of the "odmd-rag-uploader" group to upload documents.
@@ -98,13 +110,52 @@ function showSignInUI(): void {
     </div>
   `;
 
-  // Add event listener for sign-in button
+  setupSignInEventListeners();
+}
+
+// Set up event listeners for sign-in UI
+function setupSignInEventListeners(): void {
+  // Google sign-in button
   document.getElementById('signInBtn')?.addEventListener('click', () => {
     try {
       authService.initiateGoogleLogin();
     } catch (error) {
       console.error('❌ Failed to initiate Google login:', error);
       showErrorState('Failed to start authentication', error);
+    }
+  });
+
+  // JWT sign-in button
+  document.getElementById('jwtSignInBtn')?.addEventListener('click', async () => {
+    const jwtInput = document.getElementById('jwtInput') as HTMLTextAreaElement;
+    const jwtError = document.getElementById('jwtError')!;
+    const jwtToken = jwtInput.value.trim();
+
+    if (!jwtToken) {
+      jwtError.textContent = 'Please enter a JWT token';
+      jwtError.style.display = 'block';
+      return;
+    }
+
+    try {
+      jwtError.style.display = 'none';
+      showLoadingState('Authenticating with JWT token...');
+      
+      const user = await authService.authenticateWithJWT(jwtToken);
+      console.log('✅ JWT authentication successful for:', user.email);
+      showMainUI(user);
+    } catch (error) {
+      console.error('❌ JWT authentication failed:', error);
+      showSignInUI(); // Go back to sign-in UI
+      
+      // Show the error in the JWT section
+      setTimeout(() => {
+        const jwtErrorElement = document.getElementById('jwtError');
+        if (jwtErrorElement) {
+          jwtErrorElement.textContent = error instanceof Error ? error.message : 'JWT authentication failed';
+          jwtErrorElement.style.display = 'block';
+        }
+      }, 100);
     }
   });
 }
@@ -149,7 +200,7 @@ function showMainUI(user: any): void {
 
       <div class="status-section">
         <div class="status-card">
-          <h3>Upload History</h3>
+          <h3>Upload History & Pipeline Status</h3>
           <div id="uploadHistory" class="upload-history">
             <p class="no-uploads">No uploads yet</p>
           </div>
@@ -260,8 +311,8 @@ async function handleFileUpload(file: File): Promise<void> {
     console.log('✅ Upload successful, ID:', uploadId);
     showUploadProgress(100, 'Upload complete!');
 
-    // Start polling for status
-    pollUploadStatus(uploadId, file.name);
+    // Start comprehensive pipeline tracking
+    trackDocumentPipeline(uploadId, file.name);
 
   } catch (error) {
     console.error('❌ Upload failed:', error);
@@ -287,12 +338,13 @@ function hideUploadProgress(): void {
   progressElement.style.display = 'none';
 }
 
-// Poll upload status
-async function pollUploadStatus(uploadId: string, fileName: string): Promise<void> {
-  const maxAttempts = 30; // 5 minutes with 10-second intervals
+// Track document pipeline with comprehensive status across all services
+async function trackDocumentPipeline(documentId: string, fileName: string): Promise<void> {
   let attempts = 0;
+  let consecutiveErrors = 0;
+  const maxConsecutiveErrors = 3;
 
-  const addToHistory = (status: string, className: string) => {
+  const addToHistory = (status: string, className: string, details?: string) => {
     const historyElement = document.getElementById('uploadHistory')!;
     if (historyElement.querySelector('.no-uploads')) {
       historyElement.innerHTML = '';
@@ -303,7 +355,8 @@ async function pollUploadStatus(uploadId: string, fileName: string): Promise<voi
     uploadItem.innerHTML = `
       <div class="upload-item-info">
         <span class="file-name">${fileName}</span>
-        <span class="upload-id">ID: ${uploadId}</span>
+        <span class="upload-id">ID: ${documentId}</span>
+        ${details ? `<div class="pipeline-details">${details}</div>` : ''}
       </div>
       <span class="upload-status">${status}</span>
     `;
@@ -311,52 +364,245 @@ async function pollUploadStatus(uploadId: string, fileName: string): Promise<voi
   };
 
   // Add initial entry
-  addToHistory('Processing...', 'processing');
+  addToHistory('Starting comprehensive pipeline processing...', 'processing');
 
-  const checkStatus = async () => {
+  const checkPipelineStatus = async () => {
     try {
-      const status = await documentService.getUploadStatus(uploadId);
-      console.log(`📊 Status check ${attempts + 1}/${maxAttempts}:`, status);
+      attempts++;
+      console.log(`📊 Comprehensive pipeline status check ${attempts}:`);
+      
+      // Use the new comprehensive pipeline status method
+      const pipelineStatus = await documentService.getPipelineStatus(documentId);
+      console.log('Pipeline Status:', pipelineStatus);
+
+      // Reset consecutive errors on successful response
+      consecutiveErrors = 0;
 
       // Update the history entry
       const historyElement = document.getElementById('uploadHistory')!;
       const latestItem = historyElement.querySelector('.upload-item');
       
-      if (status.status === 'completed') {
+      // Create detailed multi-service status display
+      const stageProgress = createComprehensiveStageDisplay(pipelineStatus);
+      const statusText = getComprehensiveStatusText(pipelineStatus);
+      
+      if (pipelineStatus.overallStatus === 'completed') {
         latestItem?.classList.remove('processing');
         latestItem?.classList.add('completed');
-        latestItem!.querySelector('.upload-status')!.textContent = 'Completed ✅';
+        latestItem!.querySelector('.upload-status')!.textContent = 'Pipeline Completed ✅ - Ready for RAG queries';
+        updateItemDetails(latestItem, stageProgress);
         hideUploadProgress();
+        console.log('🎉 Document pipeline completed successfully');
         return;
-      } else if (status.status === 'failed') {
-        latestItem?.classList.remove('processing');
-        latestItem?.classList.add('failed');
-        latestItem!.querySelector('.upload-status')!.textContent = `Failed: ${status.message || 'Unknown error'} ❌`;
-        hideUploadProgress();
-        return;
+      } else if (pipelineStatus.overallStatus === 'failed') {
+        // Check if failure is due to service unavailability
+        const hasRealFailures = pipelineStatus.failedStages.some(stage => {
+          const stageDetail = pipelineStatus.stageDetails[stage];
+          return stageDetail?.metadata?.errorType !== 'network';
+        });
+        
+        if (hasRealFailures) {
+          latestItem?.classList.remove('processing');
+          latestItem?.classList.add('failed');
+          const failedStages = pipelineStatus.failedStages.join(', ');
+          const errorDetails = getErrorDetailsFromPipeline(pipelineStatus);
+          latestItem!.querySelector('.upload-status')!.textContent = `Pipeline Failed ❌ - Failed stages: ${failedStages}`;
+          updateItemDetails(latestItem, stageProgress + errorDetails);
+          hideUploadProgress();
+          console.error('❌ Document pipeline failed:', pipelineStatus);
+          return;
+        }
+        // If failures are only network errors, continue processing
       }
+      
+      // Still processing or waiting for services
+      latestItem!.querySelector('.upload-status')!.textContent = statusText;
+      updateItemDetails(latestItem, stageProgress);
+      console.log(`🔄 Pipeline processing: ${pipelineStatus.currentStage} (${pipelineStatus.completedStages.length}/4 stages completed)`);
 
-      attempts++;
-      if (attempts < maxAttempts) {
-        setTimeout(checkStatus, 10000); // Check every 10 seconds
-      } else {
-        latestItem?.classList.remove('processing');
-        latestItem?.classList.add('timeout');
-        latestItem!.querySelector('.upload-status')!.textContent = 'Status check timeout ⏰';
-        hideUploadProgress();
-      }
+      // Continue checking - increase intervals as time goes on
+      let nextCheckDelay = 5000; // Start with 5 seconds
+      if (attempts > 10) nextCheckDelay = 10000; // 10 seconds after 10 attempts
+      if (attempts > 30) nextCheckDelay = 30000; // 30 seconds after 30 attempts
+      if (attempts > 60) nextCheckDelay = 60000; // 1 minute after 60 attempts
+      
+      setTimeout(checkPipelineStatus, nextCheckDelay);
+      
     } catch (error) {
-      console.error('❌ Status check failed:', error);
-      const historyElement = document.getElementById('uploadHistory')!;
-      const latestItem = historyElement.querySelector('.upload-item');
-      latestItem?.classList.remove('processing');
-      latestItem?.classList.add('failed');
-      latestItem!.querySelector('.upload-status')!.textContent = 'Status check failed ❌';
-      hideUploadProgress();
+      consecutiveErrors++;
+      console.error('❌ Comprehensive pipeline status check failed:', error);
+      
+      if (consecutiveErrors >= maxConsecutiveErrors) {
+        // After multiple consecutive errors, try fallback
+        try {
+          console.log('🔄 Falling back to ingestion-only status check...');
+          const legacyStatus = await documentService.getUploadStatus(documentId);
+          
+          const historyElement = document.getElementById('uploadHistory')!;
+          const latestItem = historyElement.querySelector('.upload-item');
+          
+          if (legacyStatus.status === 'completed' || legacyStatus.status === 'validated') {
+            latestItem?.classList.remove('processing');
+            latestItem?.classList.add('partial-success');
+            latestItem!.querySelector('.upload-status')!.textContent = 'Ingestion Completed ✅ - Downstream services unavailable';
+          } else {
+            latestItem?.classList.remove('processing');
+            latestItem?.classList.add('failed');
+            latestItem!.querySelector('.upload-status')!.textContent = 'Pipeline status unavailable ❌ - Services may be down';
+          }
+          
+        } catch (fallbackError) {
+          console.error('❌ Fallback status check also failed:', fallbackError);
+          const historyElement = document.getElementById('uploadHistory')!;
+          const latestItem = historyElement.querySelector('.upload-item');
+          latestItem?.classList.remove('processing');
+          latestItem?.classList.add('failed');
+          latestItem!.querySelector('.upload-status')!.textContent = 'All services unavailable ❌';
+        }
+        
+        hideUploadProgress();
+        return;
+      }
+      
+      // Retry with exponential backoff
+      const retryDelay = Math.min(5000 * Math.pow(2, consecutiveErrors - 1), 30000);
+      setTimeout(checkPipelineStatus, retryDelay);
     }
   };
 
-  setTimeout(checkStatus, 2000); // Start checking after 2 seconds
+  setTimeout(checkPipelineStatus, 3000); // Start checking after 3 seconds
+}
+
+// Create comprehensive stage progress display for all 4 services
+function createComprehensiveStageDisplay(pipelineStatus: PipelineStatus): string {
+  const stages = [
+    { key: 'ingestion', name: 'Document Ingestion', icon: '📤' },
+    { key: 'processing', name: 'Content Processing', icon: '⚙️' },
+    { key: 'embedding', name: 'Vector Embedding', icon: '🔗' },
+    { key: 'vector-storage', name: 'Vector Storage', icon: '💾' }
+  ];
+  
+  let progressHtml = '<div class="comprehensive-stage-progress">';
+  
+  stages.forEach((stage) => {
+    const stageDetail = pipelineStatus.stageDetails[stage.key];
+    let stageClass = 'pending';
+    let stageIcon = '⏳';
+    let stageInfo = '';
+    
+    if (pipelineStatus.completedStages.includes(stage.key)) {
+      stageClass = 'completed';
+      stageIcon = '✅';
+      if (stageDetail?.metadata) {
+        const processingTime = stageDetail.metadata.processingTime || 0;
+        stageInfo = `<small>(${processingTime}ms)</small>`;
+      }
+    } else if (pipelineStatus.failedStages.includes(stage.key)) {
+      stageClass = 'failed';
+      stageIcon = '❌';
+      if (stageDetail?.metadata?.errorMessage) {
+        stageInfo = `<small class="error-text">(${stageDetail.metadata.errorMessage})</small>`;
+      }
+    } else if (pipelineStatus.currentStage === stage.key) {
+      stageClass = 'processing';
+      stageIcon = '🔄';
+      if (stageDetail?.metadata) {
+        // Show progress details for current stage
+        if (stage.key === 'processing' && stageDetail.metadata.chunkCount) {
+          stageInfo = `<small>(${stageDetail.metadata.chunkCount} chunks)</small>`;
+        } else if (stage.key === 'embedding' && stageDetail.metadata.embeddingCount) {
+          stageInfo = `<small>(${stageDetail.metadata.embeddingCount} embeddings)</small>`;
+        } else if (stage.key === 'vector-storage' && stageDetail.metadata.vectorCount) {
+          stageInfo = `<small>(${stageDetail.metadata.vectorCount} vectors)</small>`;
+        }
+      }
+    }
+    
+    progressHtml += `
+      <div class="stage-item ${stageClass}">
+        <div class="stage-header">
+          <span class="stage-icon">${stageIcon}</span>
+          <span class="stage-name">${stage.name}</span>
+        </div>
+        ${stageInfo ? `<div class="stage-info">${stageInfo}</div>` : ''}
+      </div>
+    `;
+  });
+  
+  progressHtml += '</div>';
+  
+  // Add overall processing time
+  if (pipelineStatus.totalProcessingTime > 0) {
+    progressHtml += `<div class="pipeline-summary">Total Processing Time: ${pipelineStatus.totalProcessingTime}ms</div>`;
+  }
+  
+  return progressHtml;
+}
+
+// Get comprehensive status text for all services
+function getComprehensiveStatusText(pipelineStatus: PipelineStatus): string {
+  const stageNames = {
+    'ingestion': 'Document Ingestion',
+    'processing': 'Content Processing', 
+    'embedding': 'Vector Embedding',
+    'vector-storage': 'Vector Storage'
+  };
+  
+  const currentStageName = stageNames[pipelineStatus.currentStage as keyof typeof stageNames] || pipelineStatus.currentStage;
+  const progress = `${pipelineStatus.completedStages.length}/4`;
+  
+  switch (pipelineStatus.overallStatus) {
+    case 'processing':
+      return `Processing: ${currentStageName} (${progress} completed) 🔄`;
+    case 'pending':
+      return `Pending: ${currentStageName} (${progress} completed) ⏳`;
+    case 'completed':
+      return `Completed: All stages processed (4/4) ✅`;
+    case 'failed':
+      return `Failed: ${pipelineStatus.failedStages.length} stage(s) failed ❌`;
+    default:
+      return `Status: ${pipelineStatus.overallStatus} (${progress} completed)`;
+  }
+}
+
+// Extract error details from failed pipeline stages
+function getErrorDetailsFromPipeline(pipelineStatus: PipelineStatus): string {
+  if (pipelineStatus.failedStages.length === 0) {
+    return '';
+  }
+  
+  let errorDetails = '<div class="pipeline-errors">';
+  errorDetails += '<h4>Error Details:</h4>';
+  
+  pipelineStatus.failedStages.forEach(stage => {
+    const stageDetail = pipelineStatus.stageDetails[stage];
+    const errorMessage = stageDetail?.metadata?.errorMessage || 'Unknown error';
+    const timestamp = stageDetail?.timestamp ? new Date(stageDetail.timestamp).toLocaleTimeString() : '';
+    
+    errorDetails += `
+      <div class="error-item">
+        <strong>${stage}:</strong> ${errorMessage}
+        ${timestamp ? `<small>(${timestamp})</small>` : ''}
+      </div>
+    `;
+  });
+  
+  errorDetails += '</div>';
+  return errorDetails;
+}
+
+// Update item details in the UI
+function updateItemDetails(item: Element | null, details: string): void {
+  if (!item) return;
+  
+  let detailsElement = item.querySelector('.pipeline-details');
+  if (!detailsElement) {
+    detailsElement = document.createElement('div');
+    detailsElement.className = 'pipeline-details';
+    item.querySelector('.upload-item-info')?.appendChild(detailsElement);
+  }
+  
+  detailsElement.innerHTML = details;
 }
 
 // Show loading state

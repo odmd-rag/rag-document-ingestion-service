@@ -67,3 +67,8 @@ temp/
 
 # Test user data directory (contains authentication data)
 test-usr/
+
+# Playwright test results
+test-results/
+playwright-report/
+playwright/.auth/

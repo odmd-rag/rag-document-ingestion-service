@@ -16,6 +16,12 @@ export interface Config {
         version: string;
         webDomain: string;
     };
+    services?: {
+        ingestion?: string;
+        processing?: string;
+        embedding?: string;
+        vectorStorage?: string;
+    };
     redirectUri:string
 }
 
