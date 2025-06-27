@@ -64,3 +64,6 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Test user data directory (contains authentication data)
+test-usr/
