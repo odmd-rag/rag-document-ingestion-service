@@ -115,18 +115,13 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             };
         }
         
-        const validationStatus = metadata.Metadata?.['validation-status'];
-        const downloadApproved = metadata.Metadata?.['download-approved'] === 'true';
+        const validationStatus = metadata.Tags?.['validation-status'];
         
-        console.log(`[${requestId}] Validation metadata check:`);
+        console.log(`[${requestId}] Validation tag check:`);
         console.log(`[${requestId}]   validation-status: ${validationStatus}`);
-        console.log(`[${requestId}]   download-approved: ${metadata.Metadata?.['download-approved']}`);
-        console.log(`[${requestId}]   validated-at: ${metadata.Metadata?.['validated-at']}`);
-        console.log(`[${requestId}]   validated-by: ${metadata.Metadata?.['validated-by']}`);
-        console.log(`[${requestId}]   validation-comments: ${metadata.Metadata?.['validation-comments']}`);
         
         let status: DocumentStatus['status'];
-        if (validationStatus === 'approved' || downloadApproved) {
+        if (validationStatus === 'approved') {
             status = 'validated';
             console.log(`[${requestId}] ✅ Document status determined: VALIDATED`);
         } else if (validationStatus === 'rejected') {
@@ -134,7 +129,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             console.log(`[${requestId}] ❌ Document status determined: REJECTED`);
         } else {
             status = 'pending';
-            console.log(`[${requestId}] ⏳ Document status determined: PENDING (validation-status: ${validationStatus || 'not set'})`);
+            console.log(`[${requestId}] ⏳ Document status determined: PENDING (validation-status tag not set)`);
         }
         
         result.status = status;
@@ -145,10 +140,10 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         result.userIdentityId = documentUserId;
         
         if (status === 'validated') {
-            result.validatedAt = metadata.Metadata?.['validated-at'] || metadata.LastModified?.toISOString();
+            result.validatedAt = metadata.Tags?.['validated-at'] || metadata.LastModified?.toISOString();
         } else if (status === 'rejected') {
-            result.rejectedAt = metadata.Metadata?.['validated-at'] || metadata.LastModified?.toISOString();
-            result.errorMessage = metadata.Metadata?.['validation-comments'];
+            result.rejectedAt = metadata.Tags?.['rejected-at'] || metadata.LastModified?.toISOString();
+            result.errorMessage = metadata.Tags?.['rejection-reason'];
         }
 
         const duration = Date.now() - startTime;

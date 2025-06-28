@@ -66,7 +66,8 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             actions: [
                 's3:ListBucket',
                 's3:GetObject',
-                's3:GetObjectAttributes'
+                's3:GetObjectAttributes',
+                's3:GetObjectTagging'
             ],
             resources: [
                 documentBucket.bucketArn,
@@ -75,9 +76,10 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             conditions: {
                 'StringLike': {
                     'aws:PrincipalArn': [
-                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-S3PollerHandler*`,
                         `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-DocumentProcessorHandler*`,
-                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-AdvancedDocumentProcessor*`
+                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-AdvancedDocumentProcessor*`,
+                        `arn:aws:iam::${this.account}:role/RagEmbeddingStack-EmbeddingHandler*`,
+                        `arn:aws:iam::${this.account}:role/RagVectorStorageStack-VectorStorageHandler*`
                     ]
                 }
             }
@@ -98,9 +100,10 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             conditions: {
                 'StringLike': {
                     'aws:PrincipalArn': [
-                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-S3PollerHandler*`,
                         `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-DocumentProcessorHandler*`,
-                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-AdvancedDocumentProcessor*`
+                        `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-AdvancedDocumentProcessor*`,
+                        `arn:aws:iam::${this.account}:role/RagEmbeddingStack-EmbeddingHandler*`,
+                        `arn:aws:iam::${this.account}:role/RagVectorStorageStack-VectorStorageHandler*`
                     ]
                 }
             }
