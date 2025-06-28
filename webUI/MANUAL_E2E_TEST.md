@@ -9,26 +9,30 @@ This test is designed to be run **manually** and **on-demand** - it does not run
 ## Prerequisites
 
 1. **WebUI Development Server**: `npm run dev` (running on localhost:5173)
-2. **Chrome Browser**: Must be launched with OAuth-compatible settings
+2. **Saved Authentication**: Google OAuth credentials must be saved in `./test-usr` directory
 3. **RAG Services**: All microservices must be running and healthy
 
-## Running the Test
+## One-Time Setup: Save Authentication
 
-### Step 1: Start Chrome with OAuth Support
+**Only needed once** - saves Google OAuth credentials for future test runs:
+
 ```bash
 cd rag-document-ingestion-service/webUI
 ./launch-chrome-oauth.sh
 ```
 
-### Step 2: Authenticate
-- Sign in with Google OAuth in the opened Chrome browser
-- Complete authentication flow
-- Ensure you see the upload interface
+1. Sign in with Google OAuth in the opened Chrome browser
+2. Complete authentication and verify upload interface works
+3. Close Chrome - credentials are now saved in `./test-usr`
 
-### Step 3: Run the E2E Test
+## Running the Test
+
 ```bash
-npx playwright test automated-upload-test.spec.ts --project=chromium-oauth
+cd rag-document-ingestion-service/webUI
+npx playwright test automated-upload-test.spec.ts
 ```
+
+**The test assumes you're already authenticated** and will **FAIL** if saved credentials are missing or expired.
 
 ## What the Test Validates
 

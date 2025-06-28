@@ -96,9 +96,63 @@ Google OAuth integration with Cognito:
 
 See [API_ENDPOINTS.md](./docs/API_ENDPOINTS.md) for detailed endpoint documentation.
 
+## VNC Remote Development
+
+This project is optimized for VNC remote development environments with **centralized, type-safe configuration**.
+
+### 🎯 Test Configuration Architecture
+- **Single Source of Truth**: `./tests/config/browser-positioning.ts` (TEST SCOPE)
+- **Strong TypeScript typing** for all browser positioning settings
+- **Validation functions** prevent configuration errors (e.g., window too tall)
+- **Preset configurations** for different test use cases (global, test-specific, custom)
+
+### VNC Browser Setup
+For proper browser positioning in VNC (title bar visibility):
+- **VNC Server**: TigerVNC at 192.168.2.148:5901
+- **Display Resolution**: 2560x1440
+- **Global Position**: (200,100) - Main Playwright configuration
+- **Test Position**: (250,120) - Test-specific positioning to avoid overlap  
+- **Window Size**: 1280x800 (height ≤ 800 for title bar visibility)
+- **Positioning Solution**: See `VNC_BROWSER_SETUP.md` for complete solution & failed approaches
+- **Key**: Use `--window-position=X,Y` + `--user-position` + `--geometry=WxH+X+Y` together
+
+### Playwright in VNC
+Playwright tests are configured to work in VNC with proper browser positioning:
+```bash
+DISPLAY=:1 XAUTHORITY=~/.Xauthority npx playwright test --headed
+```
+
 ## Testing
 
-See [TESTING_GUIDE.md](./docs/TESTING_GUIDE.md) for comprehensive testing procedures.
+### E2E Pipeline Testing
+
+The WebUI includes end-to-end tests that validate the complete RAG pipeline from upload to vector storage.
+
+#### One-Time Setup (Save Authentication)
+```bash
+# Launch Chrome with OAuth support and save credentials
+./launch-chrome-oauth.sh
+```
+1. Connect to VNC at 192.168.2.148:5901
+2. Complete Google OAuth in the opened Chrome browser
+3. Close Chrome to save credentials in `./test-usr`
+
+#### Running Tests
+```bash
+# Run the full pipeline validation test (VNC environment)
+DISPLAY=:1 XAUTHORITY=~/.Xauthority npx playwright test automated-upload-test.spec.ts
+```
+
+The test assumes saved authentication and will **FAIL** if credentials are missing or expired.
+
+#### What's Tested
+- ✅ Document upload and validation
+- ✅ RAG pipeline processing across all services
+- ✅ Real-time status tracking
+- ✅ Error handling and retries
+- ✅ Complete end-to-end workflow
+
+See [TESTING_SUMMARY.md](./TESTING_SUMMARY.md) for complete testing guide.
 
 ## Development Workflow
 
