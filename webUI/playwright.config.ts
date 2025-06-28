@@ -44,7 +44,7 @@ export default defineConfig({
       width: GLOBAL_CONFIG.size.width, 
       height: GLOBAL_CONFIG.size.height 
     },
-    baseURL: 'file:
+    baseURL: 'file://' + process.cwd(),
     actionTimeout: 10000,
     
     screenshot: 'only-on-failure',
