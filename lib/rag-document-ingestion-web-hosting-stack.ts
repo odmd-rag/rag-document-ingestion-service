@@ -30,7 +30,6 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
         this.zoneName = 'rag-ws1.root.ondemandenv.link';
 
         this.bucket = new Bucket(this, 'webUiBucket', {
-            bucketName: `rag-webui-${this.account}-${this.region}`,
             publicReadAccess: false,
             blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
             enforceSSL: true,

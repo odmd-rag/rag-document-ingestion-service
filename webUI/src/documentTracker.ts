@@ -148,7 +148,7 @@ export class DocumentTracker {
                     // For vector storage, if it's a network error, we can still show progress through other stages
                     if (stage.name === 'vector-storage') {
                         statusValue = 'pending'; // Vector storage might not be fully implemented yet
-                        displayMessage = `Vector storage service not available (this is expected if S3 poller is not yet deployed)`;
+                        displayMessage = `Vector storage service not available (service may be temporarily unavailable)`;
                     } else {
                         statusValue = 'pending'; // Service might not be available yet
                         displayMessage = `Service not available: ${errorMessage}`;
