@@ -2,10 +2,6 @@ import {GetCallerIdentityCommand, STSClient} from "@aws-sdk/client-sts";
 import {fromIni} from "@aws-sdk/credential-providers";
 import * as fs from "node:fs";
 
-// import {addProxyToClient} from "aws-sdk-v3-proxy";
-// process.env.HTTP_PROXY='http://192.168.49.1:8282'
-// process.env.HTTPS_PROXY='http://192.168.49.1:8282'
-// process.env.NO_PROXY='localhost,127.0.0.1'
 
 console.log("=== RAG Document Ingestion Service - Validation Handler Debug ===");
 console.log("Loading debug configuration...");
@@ -26,7 +22,6 @@ for (const k in envs) {
 
 async function main() {
     const region = 'us-west-1'
-    // const region = context.invokedFunctionArn.split(':')[3]
 
     console.log(`\n=== AWS Credentials Setup ===`);
     console.log(`Region: ${region}`);
@@ -46,7 +41,6 @@ async function main() {
     process.env.AWS_DEFAULT_REGION = region
 
     console.log(`\n=== STS Identity Verification ===`);
-    // const sts = addProxyToClient(new STSClient({}))
     const sts = new STSClient({})
     const caller = await sts.send(new GetCallerIdentityCommand({}))
     console.log(`STS Caller Identity:
@@ -92,7 +86,6 @@ async function main() {
     console.log(`Remaining time: ${context.getRemainingTimeInMillis()}ms`);
 
     /*
-    // Optional role assumption for cross-account access
     const assumeOut = await sts.send(new AssumeRoleCommand({
         RoleArn: 'arn:aws:iam::590184031795:role/cdk-hnb659fds-deploy-role-590184031795-us-west-1',
         RoleSessionName: "debugging-validation-" + Date.now()

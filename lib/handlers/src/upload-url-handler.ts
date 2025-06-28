@@ -8,11 +8,9 @@ import {createHash} from 'crypto';
 
 const s3 = new S3Client({});
 
-// Constants
-const UPLOAD_EXPIRES_IN = 900; // 15 minutes
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const UPLOAD_EXPIRES_IN = 900;
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const ALLOWED_TYPES = [
-    // Text files
     'text/plain',
     'text/markdown',
     'text/csv',
@@ -21,7 +19,6 @@ const ALLOWED_TYPES = [
     'application/xml',
     'text/html',
     
-    // Advanced documents
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword',
@@ -44,7 +41,6 @@ function getUserClaims(event: APIGatewayProxyEventV2): JWTClaims {
     return claims as JWTClaims;
 }
 
-// Helper: Validate upload request
 function validateRequest(request: Partial<UploadRequest>): UploadRequest {
     const {fileName, fileType, fileSize} = request;
 
@@ -54,7 +50,6 @@ function validateRequest(request: Partial<UploadRequest>): UploadRequest {
     if (fileSize > MAX_FILE_SIZE) throw new Error(`File size exceeds ${MAX_FILE_SIZE} bytes`);
     if (!ALLOWED_TYPES.includes(fileType)) throw new Error(`File type ${fileType} not allowed`);
 
-    // Validate that file extension matches the declared content type
     const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
     const expectedContentType = getExpectedContentType(fileExtension);
     if (expectedContentType && expectedContentType !== fileType) {
@@ -64,10 +59,8 @@ function validateRequest(request: Partial<UploadRequest>): UploadRequest {
     return {fileName, fileType, fileSize};
 }
 
-// Helper: Get expected content type from file extension
 function getExpectedContentType(extension: string): string | null {
     const contentTypeMap: { [key: string]: string } = {
-        // Text files
         'txt': 'text/plain',
         'md': 'text/markdown',
         'csv': 'text/csv',
@@ -77,7 +70,6 @@ function getExpectedContentType(extension: string): string | null {
         'html': 'text/html',
         'htm': 'text/html',
         
-        // Advanced documents
         'pdf': 'application/pdf',
         'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'doc': 'application/msword',
@@ -97,7 +89,6 @@ function getExpectedContentType(extension: string): string | null {
     return contentTypeMap[extension] || null;
 }
 
-// Helper: Create response
 function createResponse<T>(statusCode: number, data?: T, error?: string): APIGatewayProxyResultV2 {
     const response: ApiResponse<T> = {
         success: statusCode < 400,
@@ -113,27 +104,22 @@ function createResponse<T>(statusCode: number, data?: T, error?: string): APIGat
     };
 }
 
-// Main handler
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
     console.log(JSON.stringify(event, null, 2));
     try {
         const {sub: userId, email} = getUserClaims(event);
 
-        // Parse and validate request
         const body = JSON.parse(event.body || '{}');
         const {fileName, fileType, fileSize} = validateRequest(body);
 
-        // Generate timestamp-hash based key: [ISO timestamp]-[sha(timestamp + originalName + uploaderName)].ext
         const timestamp = new Date().toISOString();
         const hashInput = timestamp + fileName + (email || 'unknown');
         const fileHash = createHash('sha256').update(hashInput).digest('hex');
         
-        // Extract file extension from original filename
         const fileExtension = fileName.split('.').pop()?.toLowerCase() || '';
         const objectKey = fileExtension ? `${timestamp}-${fileHash}.${fileExtension}` : `${timestamp}-${fileHash}`;
-        const uploadId = objectKey; // Use the same value for backward compatibility
+        const uploadId = objectKey;
 
-        // Create pre-signed upload URL
         const command = new PutObjectCommand({
             Bucket: process.env.DOCUMENT_BUCKET!,
             Key: objectKey,
@@ -146,18 +132,17 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
                 'uploaded-at': timestamp,
                 'file-size': fileSize.toString(),
                 'content-type': fileType,
-                'hash-input': hashInput, // For debugging/verification
-                'timestamp': timestamp, // Duplicate for easy access
-                'validation-status': 'pending', // VALIDATION GATE: pending/approved/rejected
-                'download-approved': 'false', // Download permission flag
-                'validated-at': '', // Timestamp when validation completed
-                'validated-by': '' // Who approved/rejected the file
+                'hash-input': hashInput,
+                'timestamp': timestamp,
+                'validation-status': 'pending',
+                'download-approved': 'false',
+                'validated-at': '',
+                'validated-by': ''
             }
         });
 
         const uploadUrl = await getSignedUrl(s3, command, {expiresIn: UPLOAD_EXPIRES_IN});
 
-        // Return success response
         const responseData: UploadResponse = {
             uploadId,
             uploadUrl,

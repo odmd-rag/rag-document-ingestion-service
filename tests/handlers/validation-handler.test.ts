@@ -1,7 +1,6 @@
 import { S3Event, Context } from 'aws-lambda';
 import { handler } from '../../lib/handlers/src/validation-handler';
 
-// Mock AWS SDK
 jest.mock('@aws-sdk/client-s3');
 
 describe('Validation Handler', () => {
@@ -69,7 +68,6 @@ describe('Validation Handler', () => {
             ]
         };
 
-        // Mock S3 GetObject response
         const mockS3Response = {
             ContentType: 'application/pdf',
             ContentLength: 1024,
@@ -77,12 +75,10 @@ describe('Validation Handler', () => {
             Body: 'mock-body'
         };
 
-        // Setup mocks
         const { S3Client } = require('@aws-sdk/client-s3');
 
         S3Client.prototype.send = jest.fn().mockResolvedValue(mockS3Response);
 
-        // Execute handler
         await expect(handler(s3Event, mockContext)).resolves.toBeUndefined();
     });
 
@@ -126,7 +122,6 @@ describe('Validation Handler', () => {
             ]
         };
 
-        // Mock S3 GetObject response with invalid content type
         const mockS3Response = {
             ContentType: 'application/octet-stream',
             ContentLength: 1024,
@@ -137,7 +132,6 @@ describe('Validation Handler', () => {
         const { S3Client } = require('@aws-sdk/client-s3');
         S3Client.prototype.send = jest.fn().mockResolvedValue(mockS3Response);
 
-        // Execute handler
         await expect(handler(s3Event, mockContext)).resolves.toBeUndefined();
     });
 }); 

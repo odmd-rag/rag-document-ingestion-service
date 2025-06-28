@@ -52,14 +52,13 @@ export class AuthService {
         return this.userInfo !== null && this._idToken !== null;
     }
 
-    // Initiate authentication with user-auth service
     initiateGoogleLogin(): void {
         const state = this.generateRandomState();
         localStorage.setItem('oauth_state', state);
 
         const params = new URLSearchParams({
             response_type: 'code',
-            client_id: this.config.google.clientId, // Use the actual client ID, not userPoolId
+            client_id: this.config.google.clientId,
             redirect_uri: this.config.redirectUri,
             state,
             identity_provider: 'Google'
@@ -74,7 +73,6 @@ export class AuthService {
         return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
     }
 
-    // Handle OAuth callback and exchange code for tokens
     async handleCallback(params: URLSearchParams): Promise<UserInfo> {
         const storedState = localStorage.getItem('oauth_state');
         const returnedState = params.get('state');
@@ -95,7 +93,7 @@ export class AuthService {
             },
             body: new URLSearchParams({
                 grant_type: 'authorization_code',
-                client_id: this.config.google.clientId, // Use the actual client ID, not userPoolId
+                client_id: this.config.google.clientId,
                 redirect_uri: this.config.redirectUri,
                 code
             })
@@ -109,7 +107,6 @@ export class AuthService {
         const tokens = await tokenResponse.json();
         this._idToken = tokens.id_token as string;
 
-        // Parse user info from ID token
         const payload = JSON.parse(atob(this._idToken.split('.')[1]));
         console.log('🔍 ID Token payload:', payload);
         
@@ -121,14 +118,12 @@ export class AuthService {
 
         console.log('🔍 Extracted user info:', this.userInfo);
 
-        // Check if user has required group membership for RAG uploads
         if (!this.userInfo.groups?.includes('odmd-rag-uploader')) {
             console.error('❌ User groups:', this.userInfo.groups);
             console.error('❌ Required group: odmd-rag-uploader');
             throw new Error('Access denied: You must be a member of the "odmd-rag-uploader" group to upload documents.');
         }
 
-        // Store tokens for credential refresh
         localStorage.setItem('id_token', this._idToken);
         localStorage.setItem('user_info', JSON.stringify(this.userInfo));
 
@@ -137,7 +132,6 @@ export class AuthService {
     }
 
 
-    // Load existing session on page load
     async loadExistingSession(): Promise<UserInfo | null> {
         const storedUserInfo = localStorage.getItem('user_info');
         const idToken = localStorage.getItem('id_token');
@@ -148,9 +142,8 @@ export class AuthService {
 
         try {
             this.userInfo = JSON.parse(storedUserInfo);
-            this._idToken = idToken; // Restore the ID token
+            this._idToken = idToken;
             
-            // Validate that the token hasn't expired
             const payload = JSON.parse(atob(idToken.split('.')[1]));
             const currentTime = Math.floor(Date.now() / 1000);
             
@@ -169,7 +162,6 @@ export class AuthService {
         }
     }
 
-    // Logout and clear all stored data
     logout(): void {
         localStorage.removeItem('id_token');
         localStorage.removeItem('user_info');
@@ -181,48 +173,40 @@ export class AuthService {
 
         this.userInfo = null;
 
-        // Redirect to clean URL
         window.location.href = '/';
     }
 
-    // Direct JWT authentication for testing purposes
     async authenticateWithJWT(jwtToken: string): Promise<UserInfo> {
         try {
-            // Basic JWT validation - check if it has 3 parts
             const parts = jwtToken.split('.');
             if (parts.length !== 3) {
                 throw new Error('Invalid JWT format: Token must have 3 parts separated by dots');
             }
 
-            // Parse the payload to extract user info
             const payload = JSON.parse(atob(parts[1]));
             console.log('🔍 JWT payload:', payload);
 
-            // Check if token is expired
             const currentTime = Math.floor(Date.now() / 1000);
             if (payload?.exp && payload.exp < currentTime) {
                 throw new Error('Token has expired');
             }
 
-            // Extract user information
             this.userInfo = {
                 name: payload.name || payload.given_name + ' ' + payload.family_name || 'Test User',
                 email: payload.email || 'test@example.com',
-                groups: payload['cognito:groups'] || payload.groups || ['odmd-rag-uploader'] // Default to having the required group for testing
+                groups: payload['cognito:groups'] || payload.groups || ['odmd-rag-uploader']
             };
 
             this._idToken = jwtToken;
 
             console.log('🔍 Extracted user info from JWT:', this.userInfo);
 
-            // Check if user has required group membership for RAG uploads
             if (!this.userInfo.groups?.includes('odmd-rag-uploader')) {
                 console.error('❌ User groups:', this.userInfo.groups);
                 console.error('❌ Required group: odmd-rag-uploader');
                 throw new Error('Access denied: You must be a member of the "odmd-rag-uploader" group to upload documents.');
             }
 
-            // Store tokens for future use
             localStorage.setItem('id_token', this._idToken);
             localStorage.setItem('user_info', JSON.stringify(this.userInfo));
 

@@ -29,37 +29,32 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
     }
 
     async buildWebUiAndDeploy() {
-        // Deploy the built webUI assets
         const webDeployment = new s3deploy.BucketDeployment(this, 'DeployWebsite', {
             sources: [s3deploy.Source.asset('webUI/dist')],
             destinationBucket: this.targetBucket,
-            exclude: ['config.json'], // We'll generate config.json dynamically
+            exclude: ['config.json'],
         });
 
-        // Generate runtime configuration
         const now = new Date().toISOString();
 
-        // Get shared values from contracts
         const clientId = this.myEnver.authProviderClientId.getSharedValue(this);
         const providerName = this.myEnver.authProviderName.getSharedValue(this);
 
-        // Get service status API endpoints from contracts
         const processingStatusEndpoint = this.myEnver.processingStatusApiEndpoint.getSharedValue(this);
         const embeddingStatusEndpoint = this.myEnver.embeddingStatusApiEndpoint.getSharedValue(this);
         const vectorStorageStatusEndpoint = this.myEnver.vectorStorageStatusApiEndpoint.getSharedValue(this);
 
-        // Build configuration object
         const configObject = {
             aws: {
                 region: this.region,
                 apiEndpoint: `https://${this.mainStack.apiDomain}`,
             },
             google: {
-                clientId: clientId, // Using Google Client ID from auth service contracts
+                clientId: clientId,
             },
             cognito: {
-                providerName: providerName, // This is the provider name like "cognito-idp.region.amazonaws.com/userPoolId"
-                userPoolDomain: this.webHostingStack.zoneName, // user pool domain
+                providerName: providerName,
+                userPoolDomain: this.webHostingStack.zoneName,
             },
             deployment: {
                 timestamp: now,
@@ -73,7 +68,6 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
             }
         };
 
-        // Deploy configuration as JSON file
         const configParams = {
             Bucket: this.targetBucket.bucketName,
             Key: 'config.json',
@@ -100,7 +94,6 @@ export class RagDocumentIngestionWebUiStack extends cdk.Stack {
             })
         }).node.addDependency(webDeployment);
 
-        // Create a README with configuration instructions
         const readmeContent = `# RAG Document Ingestion Web UI - Deployment Configuration
 
 ## Deployed Configuration
@@ -193,7 +186,6 @@ This web UI integrates with the RAG system through:
             })
         }).node.addDependency(webDeployment);
 
-        // Output important URLs and IDs
         new cdk.CfnOutput(this, 'WebUIURL', {
             value: `https://${this.webHostingStack.webSubFQDN}`,
             description: 'URL of the deployed web UI',

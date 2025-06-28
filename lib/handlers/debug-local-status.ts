@@ -3,10 +3,6 @@ import {fromIni} from "@aws-sdk/credential-providers";
 import * as fs from "node:fs";
 import {APIGatewayProxyStructuredResultV2} from "aws-lambda/trigger/api-gateway-proxy";
 
-// import {addProxyToClient} from "aws-sdk-v3-proxy";
-// process.env.HTTP_PROXY='http://192.168.49.1:8282'
-// process.env.HTTPS_PROXY='http://192.168.49.1:8282'
-// process.env.NO_PROXY='localhost,127.0.0.1'
 
 console.log("=== RAG Document Ingestion Service - Status Handler Debug ===");
 console.log("Loading debug configuration...");
@@ -27,7 +23,6 @@ for (const k in envs) {
 
 async function main() {
     const region = 'us-west-1'
-    // const region = context.invokedFunctionArn.split(':')[3]
 
     console.log(`\n=== AWS Credentials Setup ===`);
     console.log(`Region: ${region}`);
@@ -47,7 +42,6 @@ async function main() {
     process.env.AWS_DEFAULT_REGION = region
 
     console.log(`\n=== STS Identity Verification ===`);
-    // const sts = addProxyToClient(new STSClient({}))
     const sts = new STSClient({})
     const caller = await sts.send(new GetCallerIdentityCommand({}))
     console.log(`STS Caller Identity:
@@ -78,7 +72,6 @@ async function main() {
     console.log(`Query parameters:`, event.queryStringParameters);
     console.log(`Path parameters:`, event.pathParameters);
     
-    // Log document ID if present in path
     if (event.pathParameters?.documentId) {
         console.log(`Document ID from path: ${event.pathParameters.documentId}`);
     }
@@ -86,7 +79,6 @@ async function main() {
     if (event.headers) {
         console.log(`Headers:`);
         Object.entries(event.headers).forEach(([key, value]) => {
-            // Mask sensitive headers
             const maskedValue = key.toLowerCase().includes('authorization') || key.toLowerCase().includes('token') 
                 ? `${String(value).substring(0, 10)}...` 
                 : value;
@@ -119,12 +111,10 @@ async function main() {
         console.log(`Execution time: ${executionTime}ms`);
         console.log(`Response headers:`, result);
         
-        // Parse and log response body if it's JSON
         try {
             const responseBody = JSON.parse(result.body!);
             console.log(`Response body:`, responseBody);
             
-            // Log document status info if present
             if (responseBody.documents) {
                 console.log(`Document status summary:`);
                 console.log(`  Total documents: ${responseBody.documents.length}`);

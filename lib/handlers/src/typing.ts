@@ -2,7 +2,6 @@
  * Essential types for RAG Document Ingestion
  */
 
-// JWT Claims from Cognito (what API Gateway gives us)
 export interface JWTClaims {
   sub: string;
   email?: string;
@@ -12,14 +11,12 @@ export interface JWTClaims {
   iat: number;
 }
 
-// Upload request body
 export interface UploadRequest {
   fileName: string;
   fileType: string;
   fileSize: number;
 }
 
-// Upload response
 export interface UploadResponse {
   uploadId: string;
   uploadUrl: string;
@@ -28,7 +25,6 @@ export interface UploadResponse {
   expiresIn: number;
 }
 
-// Standard API response wrapper
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -36,7 +32,6 @@ export interface ApiResponse<T> {
   timestamp: string;
 }
 
-// Environment variables
 export interface RequiredEnv {
   DOCUMENT_BUCKET: string;
   AWS_REGION: string;

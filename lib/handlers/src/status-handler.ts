@@ -24,9 +24,6 @@ interface DocumentStatus {
 }
 
 
-/**
- * Gets document metadata from S3
- */
 async function getDocumentMetadata(bucket: string, key: string, requestId: string): Promise<any> {
     const startTime = Date.now();
     console.log(`[${requestId}] Fetching metadata for s3://${bucket}/${key}`);
@@ -47,7 +44,6 @@ async function getDocumentMetadata(bucket: string, key: string, requestId: strin
         console.log(`[${requestId}]   ETag: ${headResult.ETag}`);
         console.log(`[${requestId}]   Custom Metadata:`, JSON.stringify(headResult.Metadata, null, 2));
 
-        // Also get tags if available
         let tags = {};
         try {
             console.log(`[${requestId}] Fetching object tags...`);
@@ -87,9 +83,6 @@ async function getDocumentMetadata(bucket: string, key: string, requestId: strin
     }
 }
 
-/**
- * Checks document status by looking in different S3 locations
- */
 async function checkDocumentStatus(documentId: string, userIdentityId: string, requestId: string): Promise<DocumentStatus> {
     const startTime = Date.now();
     console.log(`[${requestId}] Starting document status check...`);
@@ -102,8 +95,6 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         location: 'unknown'
     };
 
-    // In the new architecture, files are stored directly in the bucket root with timestamp-hash keys
-    // First, try to find the document in the main documents bucket
     console.log(`[${requestId}] Searching in main documents bucket: ${DOCUMENT_BUCKET}`);
     console.log(`[${requestId}] Checking key: ${documentId}`);
     
@@ -111,7 +102,6 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
     if (metadata) {
         console.log(`[${requestId}] ✅ Document found in main bucket!`);
         
-        // Check if the user owns this document
         const documentUserId = metadata.Metadata?.['user-id'];
         if (documentUserId !== userIdentityId) {
             console.log(`[${requestId}] ❌ Access denied: Document belongs to different user`);
@@ -120,13 +110,11 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             console.log(`[${requestId}] Document status check completed in ${duration}ms: ACCESS_DENIED`);
             return {
                 documentId,
-                status: 'not_found', // Don't reveal existence to unauthorized users
+                status: 'not_found',
                 location: 'unknown'
             };
         }
         
-        // Check validation status from metadata
-        // AWS S3 stores custom metadata without the x-amz-meta- prefix when reading back
         const validationStatus = metadata.Metadata?.['validation-status'];
         const downloadApproved = metadata.Metadata?.['download-approved'] === 'true';
         
@@ -145,7 +133,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             status = 'rejected';
             console.log(`[${requestId}] ❌ Document status determined: REJECTED`);
         } else {
-            status = 'pending'; // validation-status: pending or not set
+            status = 'pending';
             console.log(`[${requestId}] ⏳ Document status determined: PENDING (validation-status: ${validationStatus || 'not set'})`);
         }
         
@@ -168,7 +156,6 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
         return result;
     }
 
-    // Check quarantine bucket - quarantine files also use the flat structure
     console.log(`[${requestId}] Document not found in main bucket, checking quarantine: ${QUARANTINE_BUCKET}`);
     console.log(`[${requestId}] Checking quarantine key: ${documentId}`);
     
@@ -176,7 +163,6 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
     if (quarantineMetadata) {
         console.log(`[${requestId}] ✅ Document found in quarantine bucket!`);
         
-        // Check if the user owns this document
         const documentUserId = quarantineMetadata.Metadata?.['user-id'];
         if (documentUserId !== userIdentityId) {
             console.log(`[${requestId}] ❌ Access denied: Quarantined document belongs to different user`);
@@ -184,7 +170,7 @@ async function checkDocumentStatus(documentId: string, userIdentityId: string, r
             console.log(`[${requestId}] Document status check completed in ${duration}ms: ACCESS_DENIED`);
             return {
                 documentId,
-                status: 'not_found', // Don't reveal existence to unauthorized users
+                status: 'not_found',
                 location: 'unknown'
             };
         }
@@ -226,18 +212,15 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     console.log(`[${requestId}] === Document Status Handler Started ===`);
     console.log(`[${requestId}] Stage: ${event.requestContext.stage}`);
 
-    // Log configuration
     console.log(`[${requestId}] Configuration:`);
     console.log(`[${requestId}]   DOCUMENT_BUCKET: ${DOCUMENT_BUCKET}`);
     console.log(`[${requestId}]   QUARANTINE_BUCKET: ${QUARANTINE_BUCKET}`);
     console.log(`[${requestId}]   IDENTITY_POOL_ID: ${IDENTITY_POOL_ID}`);
     console.log(`[${requestId}]   AWS_REGION: ${process.env.AWS_REGION}`);
 
-    // Log path parameters
     console.log(`[${requestId}] Path parameters:`, JSON.stringify(event.pathParameters, null, 2));
     console.log(`[${requestId}] Query parameters:`, JSON.stringify(event.queryStringParameters, null, 2));
 
-    // Log headers (mask sensitive ones)
     console.log(`[${requestId}] Request headers:`);
     Object.entries(event.headers || {}).forEach(([key, value]) => {
         const maskedValue = key.toLowerCase().includes('authorization') || key.toLowerCase().includes('token')
@@ -247,7 +230,6 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     });
 
     try {
-        // Extract document ID from path parameters
         const documentId = event.pathParameters?.documentId;
         if (!documentId) {
             const duration = Date.now() - startTime;
@@ -268,7 +250,6 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
         console.log(`[${requestId}] Document ID extracted: ${documentId}`);
 
-        // Validate authentication
         const authHeader = event.headers.Authorization || event.headers.authorization;
         if (!authHeader) {
             const duration = Date.now() - startTime;
@@ -305,7 +286,6 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
             };
         }
 
-        // Check document status
         console.log(`[${requestId}] Starting document status lookup...`);
         const documentStatus = await checkDocumentStatus(documentId, userId, requestId);
 
@@ -315,7 +295,6 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         console.log(`[${requestId}] Document status: ${documentStatus.status}`);
         console.log(`[${requestId}] Document location: ${documentStatus.location}`);
 
-        // Return the document status
         return {
             statusCode: 200,
             headers: {

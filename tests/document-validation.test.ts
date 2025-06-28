@@ -15,7 +15,7 @@ describe('DocumentValidationService', () => {
       const request: ValidationRequest = {
         bucket: 'test-bucket',
         key: 'test.pdf',
-        body: Buffer.alloc(105000000), // 105MB
+        body: Buffer.alloc(105000000),
         contentType: 'application/pdf',
         fileSize: 105000000,
         originalFileName: 'large-file.pdf',
@@ -170,10 +170,9 @@ describe('DocumentValidationService', () => {
 
   describe('Processing Configuration', () => {
     it('should set high priority for files requiring OCR', async () => {
-      // Mock a PDF with embedded images
       const pdfWithImages = Buffer.concat([
-        Buffer.from('%PDF-1.4'), // PDF header
-        Buffer.from([0xFF, 0xD8, 0xFF]), // JPEG signature
+        Buffer.from('%PDF-1.4'),
+        Buffer.from([0xFF, 0xD8, 0xFF]),
       ]);
 
       const request: ValidationRequest = {
@@ -194,8 +193,8 @@ describe('DocumentValidationService', () => {
     });
 
     it('should set low priority for large files', async () => {
-      const largeContent = Buffer.alloc(60 * 1024 * 1024); // 60MB
-      largeContent.write('%PDF-1.4', 0); // Valid PDF header
+      const largeContent = Buffer.alloc(60 * 1024 * 1024);
+      largeContent.write('%PDF-1.4', 0);
 
       const request: ValidationRequest = {
         bucket: 'test-bucket',

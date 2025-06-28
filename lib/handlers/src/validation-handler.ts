@@ -4,13 +4,10 @@ import * as mime from 'mime-types';
 
 const s3Client = new S3Client({});
 
-// Configuration  
 const QUARANTINE_BUCKET = process.env.QUARANTINE_BUCKET!;
 
-// Validation configuration
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = [
-    // Text files
     'text/plain',
     'text/markdown',
     'text/csv',
@@ -19,7 +16,6 @@ const ALLOWED_MIME_TYPES = [
     'application/xml',
     'text/html',
     
-    // Advanced documents
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword',
@@ -47,7 +43,6 @@ export async function handler(event: S3Event, context: Context): Promise<void> {
     console.log(`[${requestId}] Records to process: ${event.Records.length}`);
     console.log(`[${requestId}] Event details:`, JSON.stringify(event, null, 2));
 
-    // Log environment configuration
     console.log(`[${requestId}] Configuration:`);
     console.log(`[${requestId}]   QUARANTINE_BUCKET: ${QUARANTINE_BUCKET}`);
     console.log(`[${requestId}]   MAX_FILE_SIZE: ${MAX_FILE_SIZE} bytes (${Math.round(MAX_FILE_SIZE / 1024 / 1024)}MB)`);
@@ -136,7 +131,6 @@ async function validateDocument(bucket: string, key: string, size: number, reque
     const startTime = Date.now();
     console.log(`[${requestId}] Starting document validation for ${key}`);
     
-    // Size validation
     console.log(`[${requestId}] Checking file size: ${size} bytes vs max ${MAX_FILE_SIZE} bytes`);
     if (size > MAX_FILE_SIZE) {
         const reason = `File size ${size} bytes exceeds maximum allowed size of ${MAX_FILE_SIZE} bytes`;
@@ -148,7 +142,6 @@ async function validateDocument(bucket: string, key: string, size: number, reque
     }
     console.log(`[${requestId}] ✅ Size validation passed`);
 
-    // Get object metadata
     try {
         console.log(`[${requestId}] Fetching S3 object metadata for ${bucket}/${key}`);
         const getObjectCommand = new GetObjectCommand({
@@ -165,7 +158,6 @@ async function validateDocument(bucket: string, key: string, size: number, reque
 
         const mimeType = response.ContentType || mime.lookup(key) || 'application/octet-stream';
 /*
-        // MIME type validation
         console.log(`[${requestId}] Detected MIME type: ${mimeType}`);
         console.log(`[${requestId}] Checking against allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`);
         
@@ -180,7 +172,6 @@ async function validateDocument(bucket: string, key: string, size: number, reque
         console.log(`[${requestId}] ✅ MIME type validation passed`);
 */
 
-        // Content validation (basic checks)
         const bodyStream = response.Body;
         if (!bodyStream) {
             const reason = 'Document has no content';
@@ -245,7 +236,6 @@ async function quarantineDocument(bucket: string, key: string, reason: string, r
         const copyResult = await s3Client.send(copyCommand);
         console.log(`[${requestId}] ✅ Document copied to quarantine: ${copyResult.CopyObjectResult?.ETag}`);
 
-        // Optionally delete from original bucket
         console.log(`[${requestId}] Deleting document from original bucket...`);
         const deleteCommand = new DeleteObjectCommand({
             Bucket: bucket,
@@ -274,7 +264,6 @@ async function approveDocument(bucket: string, key: string, requestId: string): 
     console.log(`[${requestId}] Approving document: ${key}`);
     
     try {
-        // Get current object metadata
         const headResponse = await s3Client.send(new HeadObjectCommand({
             Bucket: bucket,
             Key: key
@@ -282,7 +271,6 @@ async function approveDocument(bucket: string, key: string, requestId: string): 
 
         const currentMetadata = headResponse.Metadata || {};
         
-        // Update metadata with validation approval
         const updatedMetadata = {
             ...currentMetadata,
             'validation-status': 'approved',
@@ -292,7 +280,6 @@ async function approveDocument(bucket: string, key: string, requestId: string): 
             'validation-comments': 'Automatically approved after passing all validation checks'
         };
 
-        // Copy object with new metadata
         await s3Client.send(new CopyObjectCommand({
             Bucket: bucket,
             CopySource: `${bucket}/${key}`,
@@ -321,7 +308,6 @@ async function rejectDocument(bucket: string, key: string, reason: string, reque
     console.log(`[${requestId}] Rejecting document: ${key} - ${reason}`);
     
     try {
-        // Get current object metadata
         const headResponse = await s3Client.send(new HeadObjectCommand({
             Bucket: bucket,
             Key: key
@@ -329,7 +315,6 @@ async function rejectDocument(bucket: string, key: string, reason: string, reque
 
         const currentMetadata = headResponse.Metadata || {};
         
-        // Update metadata with validation rejection
         const updatedMetadata = {
             ...currentMetadata,
             'validation-status': 'rejected',
@@ -339,7 +324,6 @@ async function rejectDocument(bucket: string, key: string, reason: string, reque
             'validation-comments': reason
         };
 
-        // Copy object with new metadata
         await s3Client.send(new CopyObjectCommand({
             Bucket: bucket,
             CopySource: `${bucket}/${key}`,

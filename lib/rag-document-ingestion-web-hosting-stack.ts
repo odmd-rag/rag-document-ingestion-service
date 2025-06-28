@@ -25,7 +25,6 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
     constructor(scope: Construct, myEnver: RagDocumentIngestionEnver, props: cdk.StackProps) {
         const id = myEnver.getRevStackNames()[1]
         super(scope, id, {...props, crossRegionReferences: props.env!.region != 'us-east-1'});
-        // Get hosted zone information from shared values
         this.hostedZoneId = 'Z01450892FNOJJT5BBBRU';
         this.zoneName = 'rag-ws1.root.ondemandenv.link';
 
@@ -104,7 +103,6 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
             ),
             recordName: webSubdomain
         });
-        // Output values for other stacks to consume
         new cdk.CfnOutput(this, 'WebUiBucketName', {
             value: this.bucket.bucketName,
             exportName: `${this.stackName}-WebUiBucket`,

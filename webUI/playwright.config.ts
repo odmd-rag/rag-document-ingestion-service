@@ -15,29 +15,24 @@ import { getGlobalChromeArgs, getVncEnvironment, GLOBAL_CONFIG } from './tests/c
 export default defineConfig({
   testDir: './tests',
   
-  // Timeout configurations
   timeout: 30000,
   expect: { timeout: 10000 },
   
-  // Parallel execution settings
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   
-  // Reporter configuration
   reporter: [
-    ['html', { open: 'never' }], // Don't auto-open in VNC environment
+    ['html', { open: 'never' }],
     ['line'],
   ],
   
-  // Global configuration for VNC environment
   use: {
-    // Browser launch options with centralized configuration
     launchOptions: {
       headless: false,
       executablePath: '/usr/bin/google-chrome',
-      slowMo: 100, // Slow down for better VNC rendering
+      slowMo: 100,
       args: getGlobalChromeArgs(),
       env: {
         ...process.env,
@@ -45,21 +40,18 @@ export default defineConfig({
       },
     },
     
-    // Test configuration matching window size
     viewport: { 
       width: GLOBAL_CONFIG.size.width, 
       height: GLOBAL_CONFIG.size.height 
     },
-    baseURL: 'file://' + process.cwd(),
+    baseURL: 'file:
     actionTimeout: 10000,
     
-    // Media capture settings
     screenshot: 'only-on-failure',
     video: 'retain-on-failure', 
     trace: 'retain-on-failure',
   },
 
-  // Browser projects
   projects: [
     {
       name: 'chromium-vnc',
@@ -69,12 +61,9 @@ export default defineConfig({
           width: GLOBAL_CONFIG.size.width, 
           height: GLOBAL_CONFIG.size.height 
         },
-        channel: undefined, // Use executablePath instead of channel
+        channel: undefined,
       },
     },
     
-    // Additional browsers (uncomment if needed for cross-browser testing)
-    // { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    // { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
 }); 

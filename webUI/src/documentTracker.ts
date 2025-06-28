@@ -54,36 +54,30 @@ export class DocumentTracker {
                 console.log(`Checking ${stage.name} status for document ${documentId}`);
                 const status = await this.checkStageStatus(documentId, stage.endpoint);
                 
-                // Call progress callback if provided
                 if (progressCallback) {
                     progressCallback(status);
                 }
                 
                 if (status.status === 'completed') {
-                    // Stage completed, move to next stage
                     console.log(`${stage.name} completed for document ${documentId}`);
                     currentStageIndex++;
                     
-                    // If this was the last stage, we're done
                     if (currentStageIndex >= stages.length) {
                         finalStatus = status;
                         break;
                     }
                 } else if (status.status === 'failed') {
-                    // Stage failed, return the failure status
                     console.error(`${stage.name} failed for document ${documentId}:`, status.metadata?.errorMessage);
                     finalStatus = status;
                     break;
                 } else {
-                    // Stage is pending or processing, wait and check again
                     console.log(`${stage.name} status: ${status.status} for document ${documentId}`);
-                    await this.sleep(2000); // Wait 2 seconds before checking again
+                    await this.sleep(2000);
                 }
                 
             } catch (error) {
                 console.error(`Error checking ${stage.name} status for document ${documentId}:`, error);
                 
-                // Return a failed status
                 finalStatus = {
                     documentId,
                     status: 'failed',
@@ -98,7 +92,6 @@ export class DocumentTracker {
         }
 
         if (!finalStatus) {
-            // This shouldn't happen, but just in case
             finalStatus = {
                 documentId,
                 status: 'failed',
@@ -127,7 +120,6 @@ export class DocumentTracker {
 
         const statuses: { [stage: string]: DocumentStatus } = {};
 
-        // Check all stages in parallel
         const promises = stages.map(async (stage) => {
             try {
                 const status = await this.checkStageStatus(documentId, stage.endpoint);
@@ -136,7 +128,6 @@ export class DocumentTracker {
             } catch (error) {
                 console.error(`❌ Error checking ${stage.name} status:`, error);
                 
-                // Distinguish between different types of errors
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                 const isNetworkError = errorMessage.includes('Failed to fetch') || errorMessage.includes('Network error');
                 const isNotFoundError = errorMessage.includes('404') || errorMessage.includes('Not Found');
@@ -145,16 +136,15 @@ export class DocumentTracker {
                 let displayMessage = '';
                 
                 if (isNetworkError) {
-                    // For vector storage, if it's a network error, we can still show progress through other stages
                     if (stage.name === 'vector-storage') {
-                        statusValue = 'pending'; // Vector storage might not be fully implemented yet
+                        statusValue = 'pending';
                         displayMessage = `Vector storage service not available (service may be temporarily unavailable)`;
                     } else {
-                        statusValue = 'pending'; // Service might not be available yet
+                        statusValue = 'pending';
                         displayMessage = `Service not available: ${errorMessage}`;
                     }
                 } else if (isNotFoundError) {
-                    statusValue = 'pending'; // Document hasn't reached this stage yet
+                    statusValue = 'pending';
                     displayMessage = `Document not found at this stage (hasn't reached ${stage.name} yet)`;
                 } else {
                     displayMessage = `Failed to check status: ${errorMessage}`;
@@ -182,7 +172,6 @@ export class DocumentTracker {
      * Check the status of a document at a specific service endpoint
      */
     private async checkStageStatus(documentId: string, endpoint: string): Promise<DocumentStatus> {
-        // Handle endpoints that already include /status path
         const url = endpoint.endsWith('/status') ? `${endpoint}/${documentId}` : `${endpoint}/status/${documentId}`;
         
         const response = await fetch(url, {
@@ -199,7 +188,6 @@ export class DocumentTracker {
 
         const rawResponse = await response.json();
         
-        // Map the raw response to our standardized DocumentStatus format
         return this.mapServiceResponse(rawResponse, endpoint);
     }
 
@@ -207,7 +195,6 @@ export class DocumentTracker {
      * Map service-specific response formats to standardized DocumentStatus
      */
     private mapServiceResponse(rawResponse: any, endpoint: string): DocumentStatus {
-        // Determine which service this is based on endpoint
         const isIngestionService = endpoint.includes('ragingest') || endpoint.includes('up-api');
         const isProcessingService = endpoint.includes('ragproc') || endpoint.includes('pr-api');
         const isEmbeddingService = endpoint.includes('ragembed') || endpoint.includes('em-api');
@@ -218,13 +205,12 @@ export class DocumentTracker {
         else if (isEmbeddingService) stage = 'embedding';
         else if (isVectorStorageService) stage = 'vector-storage';
 
-        // Map ingestion service response format
         if (isIngestionService) {
             let mappedStatus: DocumentStatus['status'] = 'pending';
             
             switch (rawResponse.status) {
                 case 'validated':
-                    mappedStatus = 'completed'; // Map validated to completed for pipeline progression
+                    mappedStatus = 'completed';
                     break;
                 case 'completed':
                     mappedStatus = 'completed';
@@ -262,8 +248,6 @@ export class DocumentTracker {
             };
         }
 
-        // For other services, try to handle their response formats
-        // (This is placeholder - we'll need to adjust based on actual service responses)
         return {
             documentId: rawResponse.documentId || rawResponse.id,
             status: rawResponse.status === 'completed' ? 'completed' : 
@@ -304,7 +288,6 @@ export class DocumentTracker {
         let overallStatus: 'pending' | 'processing' | 'completed' | 'failed' = 'pending';
         let totalProcessingTime = 0;
 
-        // Analyze statuses to determine overall state
         for (const stage of stages) {
             const status = allStatuses[stage];
             
@@ -317,7 +300,6 @@ export class DocumentTracker {
                         totalProcessingTime += status.metadata.executionTimeMs;
                     }
                 } else if (status.status === 'failed' && status.metadata?.errorType !== 'network') {
-                    // Only treat as truly failed if it's not a network error
                     failedStages.push(stage);
                     overallStatus = 'failed';
                     currentStage = stage;
@@ -327,7 +309,6 @@ export class DocumentTracker {
                     currentStage = stage;
                     break;
                 } else {
-                    // pending or network error
                     if (status.metadata?.errorType === 'network') {
                         unavailableStages.push(stage);
                     }
@@ -337,20 +318,15 @@ export class DocumentTracker {
             }
         }
 
-        // Determine overall status based on completed stages and service availability
         if (completedStages.length === stages.length && failedStages.length === 0) {
             overallStatus = 'completed';
             currentStage = 'vector-storage';
         } else if (completedStages.length > 0 && failedStages.length === 0) {
-            // Special handling for vector storage being unavailable
             if (completedStages.includes('embedding') && unavailableStages.includes('vector-storage')) {
-                // If embedding is complete but vector storage is unavailable, show as mostly complete
                 overallStatus = 'processing';
                 currentStage = 'vector-storage';
             } else if (completedStages.includes('ingestion') && unavailableStages.length > 0) {
-                // If ingestion is completed but other services are unavailable, show as processing
                 overallStatus = 'processing';
-                // Find the next available stage
                 for (const stage of stages) {
                     if (!completedStages.includes(stage) && !unavailableStages.includes(stage)) {
                         currentStage = stage;
@@ -395,7 +371,6 @@ export class DocumentTracker {
  * Example usage function showing how to use the DocumentTracker
  */
 export async function trackDocumentExample(documentId: string, authToken: string) {
-    // Configure service endpoints based on environment (using buildId pattern)
     const endpoints: ServiceEndpoints = {
         ingestion: 'https://up-api.dev.ragDocumentIngestion.yourdomain.com',
         processing: 'https://st-api.dev.ragDocumentProcessing.yourdomain.com',
@@ -405,7 +380,6 @@ export async function trackDocumentExample(documentId: string, authToken: string
 
     const tracker = new DocumentTracker(endpoints, authToken);
 
-    // Example 1: Track document with progress callback
     console.log('Starting document tracking with progress updates...');
     
     const finalStatus = await tracker.trackDocument(documentId, (status) => {
@@ -417,11 +391,9 @@ export async function trackDocumentExample(documentId: string, authToken: string
 
     console.log('Final status:', finalStatus);
 
-    // Example 2: Get pipeline summary
     const summary = await tracker.getPipelineSummary(documentId);
     console.log('Pipeline summary:', summary);
 
-    // Example 3: Get all stage statuses at once
     const allStatuses = await tracker.getAllStageStatuses(documentId);
     console.log('All stage statuses:', allStatuses);
 

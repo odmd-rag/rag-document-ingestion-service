@@ -5,8 +5,6 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
 
   const TEST_FILE_PATH = './test-files/sample-document.txt';
 
-  // E2E test with persistent authentication - assumes saved credentials
-  // Usage: npx playwright test automated-upload-test.spec.ts
   test('validate complete RAG pipeline processing with saved credentials', async () => {
     console.log('🤖 Starting Complete RAG Pipeline Validation Test');
     console.log('=================================================');
@@ -14,14 +12,12 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
     console.log('🔐 Assumes saved authentication credentials in ./test-usr directory');
     console.log('');
 
-    // Set timeout for full pipeline processing
-    test.setTimeout(900000); // 15 minutes for full pipeline
+    test.setTimeout(900000);
 
     let browser;
     let page;
 
     try {
-      // Launch Chrome with persistent context for OAuth (using centralized config)
       console.log('🚀 Launching Chrome browser...');
       console.log(`📍 Browser positioned at (${TEST_CONFIG.position.x}, ${TEST_CONFIG.position.y}) size ${TEST_CONFIG.size.width}x${TEST_CONFIG.size.height}`);
       const context = await chromium.launchPersistentContext('./test-usr', {
@@ -37,7 +33,7 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
       page = await context.newPage();
 
       console.log('🔗 Navigating to RAG WebUI...');
-      await page.goto('http://localhost:5173');
+      await page.goto('http:
 
       console.log(`✅ Connected to RAG WebUI: ${page.url()}`);
 
@@ -47,15 +43,12 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
       throw new Error('Browser launch failed');
     }
 
-    // Set up logging
     page.on('console', msg => console.log('🖥️  Browser:', msg.text()));
     page.on('pageerror', err => console.error('❌ Page Error:', err.message));
 
-    // Wait for page to be ready
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
 
-    // Take initial screenshot
     await page.screenshot({
       path: 'test-results/pipeline-validation-00-start.png',
       fullPage: true
@@ -64,7 +57,6 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
     console.log('📸 Initial screenshot taken');
     console.log('');
 
-    // Check authentication state
     const signInCard = page.locator('.sign-in-card');
     const uploadSection = page.locator('.upload-section');
     const userInfo = page.locator('.user-info');
@@ -82,7 +74,6 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
       console.log('❌ AUTHENTICATION REQUIRED - Attempting Google OAuth Sign-in...');
       console.log('🔄 Trying to click "Sign in with Google" button...');
 
-      // Try to find and click the Google sign-in button
       const googleSignInBtn = page.locator('button:has-text("Sign in with Google"), .google-signin-btn, [data-testid="google-signin"], .sign-in-card button');
 
       const signInBtnVisible = await googleSignInBtn.first().isVisible().catch(() => false);
@@ -94,10 +85,8 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
           await googleSignInBtn.first().click();
           console.log('✅ Clicked Google sign-in button');
 
-          // Wait for potential redirect or popup
           await page.waitForTimeout(5000);
 
-          // Check authentication state again after sign-in attempt
           const uploadSectionRetry = page.locator('.upload-section');
           const userInfoRetry = page.locator('.user-info');
 
@@ -159,7 +148,6 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
     console.log(`👤 Authenticated user: ${userInfoText?.trim()}`);
     console.log('');
 
-    // Verify upload elements are present
     const uploadArea = page.locator('#uploadArea');
     const fileInput = page.locator('#fileInput');
 
@@ -183,24 +171,21 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
     console.log('📁 STEP 1: FILE UPLOAD');
     console.log('======================');
 
-    // Perform file upload
     console.log(`📄 Uploading test file: ${TEST_FILE_PATH}`);
 
     try {
       await fileInput.setInputFiles(TEST_FILE_PATH);
       console.log('✅ File selected successfully');
 
-      // Wait for upload to start
       await page.waitForTimeout(3000);
 
-      // Monitor upload progress
       const progressText = page.locator('#progressText');
 
       console.log('📊 Monitoring upload progress...');
 
       let uploadCompleted = false;
       let attempts = 0;
-      const maxUploadAttempts = 60; // 1 minute for upload
+      const maxUploadAttempts = 60;
 
       while (attempts < maxUploadAttempts && !uploadCompleted) {
         attempts++;
@@ -210,7 +195,6 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
         if (progressTextContent) {
           console.log(`📊 Upload Progress: ${progressTextContent}`);
 
-          // Check if upload completed
           if (progressTextContent.includes('100%') || progressTextContent.toLowerCase().includes('complete')) {
             console.log('✅ File upload completed!');
             uploadCompleted = true;
@@ -218,7 +202,6 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
           }
         }
 
-        // Check for upload errors
         const errorElements = await page.locator('.error, .alert-error, [class*="error"]').count();
         if (errorElements > 0) {
           const errorText = await page.locator('.error, .alert-error, [class*="error"]').first().textContent();
@@ -253,8 +236,7 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
     console.log('⚠️  Now validating COMPLETE pipeline success...');
     console.log('');
 
-    // Get the uploaded document ID from history
-    await page.waitForTimeout(3000); // Wait for history to update
+    await page.waitForTimeout(3000);
     const historyItems = page.locator('#uploadHistory .upload-item, #uploadHistory .document-item');
 
     const historyCount = await historyItems.count();
@@ -264,12 +246,10 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
       throw new Error('No documents found in upload history');
     }
 
-    // Get the latest document
     const latestItem = historyItems.first();
     const latestItemText = await latestItem.textContent();
     console.log(`📄 Latest document: ${latestItemText?.trim()}`);
 
-    // Extract document ID (should be in the text)
     let documentId = null;
     const idMatch = latestItemText?.match(/([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z-[a-f0-9]{64}\.txt)/);
     if (idMatch) {
@@ -279,7 +259,6 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
       throw new Error('Could not extract document ID from upload history');
     }
 
-    // Now validate the complete RAG pipeline
     console.log('');
     console.log('🔍 PIPELINE STAGE VALIDATION:');
     console.log('=============================');
@@ -287,20 +266,16 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
     let pipelineCompleted = false;
     let pipelineFailed = false;
     let pipelineAttempts = 0;
-    const maxPipelineAttempts = 300; // 5 minutes for pipeline processing
+    const maxPipelineAttempts = 300;
 
 
     while (pipelineAttempts < maxPipelineAttempts && !pipelineCompleted && !pipelineFailed) {
       pipelineAttempts++;
 
-      // Check console logs for pipeline status
-      // The browser console should contain pipeline status information
 
-      // Wait and check for completion
       await page.waitForTimeout(1000);
 
-      // Take periodic screenshots
-      if (pipelineAttempts % 30 === 0) { // Every 30 seconds
+      if (pipelineAttempts % 30 === 0) {
         await page.screenshot({
           path: `test-results/pipeline-validation-02-processing-${Math.floor(pipelineAttempts/30)}.png`,
           fullPage: true
@@ -308,9 +283,7 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
         console.log(`📸 Pipeline monitoring screenshot ${Math.floor(pipelineAttempts/30)} taken`);
       }
 
-             // For now, we'll use a simpler approach - wait for a reasonable time
-       // and then check the final status
-       if (pipelineAttempts >= 120) { // After 2 minutes, check status
+       if (pipelineAttempts >= 120) {
          break;
        }
 
@@ -321,16 +294,12 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
     console.log('🔍 FINAL PIPELINE STATUS CHECK:');
     console.log('===============================');
 
-    // Take final screenshot
     await page.screenshot({
       path: 'test-results/pipeline-validation-03-final-status.png',
       fullPage: true
     });
 
-    // Based on your logs, we need to check the browser console for the actual pipeline status
-    // The test should FAIL if embedding service failed or if processing is stuck
 
-    // Check for any error indicators in the UI
     const errorElements = await page.locator('.error, .alert-error, [class*="error"], [class*="failed"]').count();
     const warningElements = await page.locator('.warning, .alert-warning, [class*="warning"]').count();
 
@@ -345,21 +314,14 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
       }
     }
 
-    // The key issue: Based on your console logs, the embedding service FAILED
-    // We need to check for specific failure patterns in the browser console
 
-    // For this test, we'll implement a strict validation:
-    // The test should FAIL if any pipeline stage fails
 
     console.log('');
     console.log('⚠️  CRITICAL PIPELINE VALIDATION:');
     console.log('=================================');
     console.log('🔍 Checking browser console for pipeline failures...');
 
-    // Get browser console logs (this is a limitation - we can't easily access them retrospectively)
-    // But we can check the current page state for indicators
 
-    // Look for specific status indicators
     const statusElements = page.locator('[class*="status"], [class*="pipeline"], [class*="stage"]');
     const statusCount = await statusElements.count();
 
@@ -374,14 +336,12 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
         if (statusText && statusText.trim()) {
           console.log(`📊 Status ${i + 1}: ${statusText.trim()}`);
 
-          // Check for failure indicators
           if (statusText.toLowerCase().includes('failed') ||
               statusText.toLowerCase().includes('error') ||
               statusText.toLowerCase().includes('unsuccessful')) {
             hasFailures = true;
           }
 
-          // Check for incomplete processing
           if (statusText.toLowerCase().includes('pending') ||
               statusText.toLowerCase().includes('processing') ||
               statusText.toLowerCase().includes('yellow')) {
@@ -397,7 +357,6 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
     console.log(`🔍 Pipeline failures detected: ${hasFailures ? 'YES ❌' : 'NO ✅'}`);
     console.log(`🔍 Incomplete processing: ${hasIncomplete ? 'YES ⚠️' : 'NO ✅'}`);
 
-    // CRITICAL: Test should FAIL if there are failures or incomplete processing
     if (hasFailures) {
       console.log('');
       console.log('❌ PIPELINE VALIDATION FAILED!');

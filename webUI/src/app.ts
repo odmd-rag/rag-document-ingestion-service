@@ -2,35 +2,28 @@ import { AuthService } from './auth.ts';
 import { DocumentService, type PipelineStatus } from './documentService.ts';
 import { loadConfig } from './config.ts';
 
-// Global state
 let authService: AuthService;
 let documentService: DocumentService;
 
-// Initialize the application
 async function initializeApp(): Promise<void> {
   try {
     console.log('🚀 Initializing RAG Document Ingestion App...');
     
-    // Load configuration
     await loadConfig();
     console.log('✅ Configuration loaded');
 
-    // Initialize auth service
     authService = await AuthService.getInstance();
     console.log('✅ AuthService initialized');
 
-    // Initialize document service
     documentService = new DocumentService();
     console.log('✅ DocumentService initialized');
 
-    // Handle OAuth callback if present
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('callback') || urlParams.get('code')) {
       await handleOAuthCallback(urlParams);
-      return; // Early return to avoid rendering sign-in UI
+      return;
     }
 
-    // Try to restore existing session
     const existingUser = await authService.loadExistingSession();
     if (existingUser) {
       console.log('✅ Restored existing session for:', existingUser.email);
@@ -46,7 +39,6 @@ async function initializeApp(): Promise<void> {
   }
 }
 
-// Handle OAuth callback from Cognito
 async function handleOAuthCallback(params: URLSearchParams): Promise<void> {
   try {
     console.log('🔄 Handling OAuth callback...');
@@ -55,7 +47,6 @@ async function handleOAuthCallback(params: URLSearchParams): Promise<void> {
     const user = await authService.handleCallback(params);
     console.log('✅ Authentication successful for:', user.email);
 
-    // Clean up URL by redirecting to the main page
     window.history.replaceState({}, document.title, '/');
     
     showMainUI(user);
@@ -65,7 +56,6 @@ async function handleOAuthCallback(params: URLSearchParams): Promise<void> {
   }
 }
 
-// Show sign-in UI
 function showSignInUI(): void {
   const appDiv = document.getElementById('app')!;
   appDiv.innerHTML = `
@@ -113,9 +103,7 @@ function showSignInUI(): void {
   setupSignInEventListeners();
 }
 
-// Set up event listeners for sign-in UI
 function setupSignInEventListeners(): void {
-  // Google sign-in button
   document.getElementById('signInBtn')?.addEventListener('click', () => {
     try {
       authService.initiateGoogleLogin();
@@ -125,7 +113,6 @@ function setupSignInEventListeners(): void {
     }
   });
 
-  // JWT sign-in button
   document.getElementById('jwtSignInBtn')?.addEventListener('click', async () => {
     const jwtInput = document.getElementById('jwtInput') as HTMLTextAreaElement;
     const jwtError = document.getElementById('jwtError')!;
@@ -146,9 +133,8 @@ function setupSignInEventListeners(): void {
       showMainUI(user);
     } catch (error) {
       console.error('❌ JWT authentication failed:', error);
-      showSignInUI(); // Go back to sign-in UI
+      showSignInUI();
       
-      // Show the error in the JWT section
       setTimeout(() => {
         const jwtErrorElement = document.getElementById('jwtError');
         if (jwtErrorElement) {
@@ -160,7 +146,6 @@ function setupSignInEventListeners(): void {
   });
 }
 
-// Show main UI for authenticated users
 function showMainUI(user: any): void {
   const appDiv = document.getElementById('app')!;
   appDiv.innerHTML = `
@@ -212,23 +197,18 @@ function showMainUI(user: any): void {
   setupMainUIEventListeners();
 }
 
-// Set up event listeners for the main UI
 function setupMainUIEventListeners(): void {
-  // Sign out button
   document.getElementById('signOutBtn')?.addEventListener('click', () => {
     authService.logout();
   });
 
-  // File upload functionality
   const uploadArea = document.getElementById('uploadArea')!;
   const fileInput = document.getElementById('fileInput') as HTMLInputElement;
 
-  // Click to open file dialog
   uploadArea.addEventListener('click', () => {
     fileInput.click();
   });
 
-  // Drag and drop handling
   uploadArea.addEventListener('dragover', (e) => {
     e.preventDefault();
     uploadArea.classList.add('drag-over');
@@ -248,7 +228,6 @@ function setupMainUIEventListeners(): void {
     }
   });
 
-  // File input change handler
   fileInput.addEventListener('change', (e) => {
     const files = (e.target as HTMLInputElement).files;
     if (files && files.length > 0) {
@@ -257,14 +236,11 @@ function setupMainUIEventListeners(): void {
   });
 }
 
-// Handle file upload
 async function handleFileUpload(file: File): Promise<void> {
   try {
     console.log('📤 Starting upload for:', file.name);
     
-    // Validate file type
     const allowedTypes = [
-      // Text files
       'text/plain',
       'text/markdown',
       'text/csv',
@@ -273,7 +249,6 @@ async function handleFileUpload(file: File): Promise<void> {
       'application/xml',
       'text/html',
       
-      // Advanced documents
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
@@ -293,17 +268,14 @@ async function handleFileUpload(file: File): Promise<void> {
       throw new Error('Unsupported file type. Please upload a supported document format.');
     }
 
-    // Validate file size (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
       throw new Error('File size too large. Please upload files smaller than 10MB.');
     }
 
     showUploadProgress(0, 'Preparing upload...');
 
-    // Initialize document service with current credentials
     await documentService.initialize(authService.idToken!);
 
-    // Upload the file
     const uploadId = await documentService.uploadDocument(file, (progress) => {
       showUploadProgress(progress, 'Uploading...');
     });
@@ -311,7 +283,6 @@ async function handleFileUpload(file: File): Promise<void> {
     console.log('✅ Upload successful, ID:', uploadId);
     showUploadProgress(100, 'Upload complete!');
 
-    // Start comprehensive pipeline tracking
     trackDocumentPipeline(uploadId, file.name);
 
   } catch (error) {
@@ -321,7 +292,6 @@ async function handleFileUpload(file: File): Promise<void> {
   }
 }
 
-// Show upload progress
 function showUploadProgress(progress: number, text: string): void {
   const progressElement = document.getElementById('uploadProgress')!;
   const progressFill = document.getElementById('progressFill')!;
@@ -332,13 +302,11 @@ function showUploadProgress(progress: number, text: string): void {
   progressText.textContent = text;
 }
 
-// Hide upload progress
 function hideUploadProgress(): void {
   const progressElement = document.getElementById('uploadProgress')!;
   progressElement.style.display = 'none';
 }
 
-// Track document pipeline with comprehensive status across all services
 async function trackDocumentPipeline(documentId: string, fileName: string): Promise<void> {
   let attempts = 0;
   let consecutiveErrors = 0;
@@ -363,7 +331,6 @@ async function trackDocumentPipeline(documentId: string, fileName: string): Prom
     historyElement.insertBefore(uploadItem, historyElement.firstChild);
   };
 
-  // Add initial entry
   addToHistory('Starting comprehensive pipeline processing...', 'processing');
 
   const checkPipelineStatus = async () => {
@@ -371,18 +338,14 @@ async function trackDocumentPipeline(documentId: string, fileName: string): Prom
       attempts++;
       console.log(`📊 Comprehensive pipeline status check ${attempts}:`);
       
-      // Use the new comprehensive pipeline status method
       const pipelineStatus = await documentService.getPipelineStatus(documentId);
       console.log('Pipeline Status:', pipelineStatus);
 
-      // Reset consecutive errors on successful response
       consecutiveErrors = 0;
 
-      // Update the history entry
       const historyElement = document.getElementById('uploadHistory')!;
       const latestItem = historyElement.querySelector('.upload-item');
       
-      // Create detailed multi-service status display
       const stageProgress = createComprehensiveStageDisplay(pipelineStatus);
       const statusText = getComprehensiveStatusText(pipelineStatus);
       
@@ -395,7 +358,6 @@ async function trackDocumentPipeline(documentId: string, fileName: string): Prom
         console.log('🎉 Document pipeline completed successfully');
         return;
       } else if (pipelineStatus.overallStatus === 'failed') {
-        // Check if failure is due to service unavailability
         const hasRealFailures = pipelineStatus.failedStages.some(stage => {
           const stageDetail = pipelineStatus.stageDetails[stage];
           return stageDetail?.metadata?.errorType !== 'network';
@@ -412,19 +374,16 @@ async function trackDocumentPipeline(documentId: string, fileName: string): Prom
           console.error('❌ Document pipeline failed:', pipelineStatus);
           return;
         }
-        // If failures are only network errors, continue processing
       }
       
-      // Still processing or waiting for services
       latestItem!.querySelector('.upload-status')!.textContent = statusText;
       updateItemDetails(latestItem, stageProgress);
       console.log(`🔄 Pipeline processing: ${pipelineStatus.currentStage} (${pipelineStatus.completedStages.length}/4 stages completed)`);
 
-      // Continue checking - increase intervals as time goes on
-      let nextCheckDelay = 5000; // Start with 5 seconds
-      if (attempts > 10) nextCheckDelay = 10000; // 10 seconds after 10 attempts
-      if (attempts > 30) nextCheckDelay = 30000; // 30 seconds after 30 attempts
-      if (attempts > 60) nextCheckDelay = 60000; // 1 minute after 60 attempts
+      let nextCheckDelay = 5000;
+      if (attempts > 10) nextCheckDelay = 10000;
+      if (attempts > 30) nextCheckDelay = 30000;
+      if (attempts > 60) nextCheckDelay = 60000;
       
       setTimeout(checkPipelineStatus, nextCheckDelay);
       
@@ -433,7 +392,6 @@ async function trackDocumentPipeline(documentId: string, fileName: string): Prom
       console.error('❌ Comprehensive pipeline status check failed:', error);
       
       if (consecutiveErrors >= maxConsecutiveErrors) {
-        // After multiple consecutive errors, try fallback
         try {
           console.log('🔄 Falling back to ingestion-only status check...');
           const legacyStatus = await documentService.getUploadStatus(documentId);
@@ -464,16 +422,14 @@ async function trackDocumentPipeline(documentId: string, fileName: string): Prom
         return;
       }
       
-      // Retry with exponential backoff
       const retryDelay = Math.min(5000 * Math.pow(2, consecutiveErrors - 1), 30000);
       setTimeout(checkPipelineStatus, retryDelay);
     }
   };
 
-  setTimeout(checkPipelineStatus, 3000); // Start checking after 3 seconds
+  setTimeout(checkPipelineStatus, 3000);
 }
 
-// Create comprehensive stage progress display for all 4 services
 function createComprehensiveStageDisplay(pipelineStatus: PipelineStatus): string {
   const stages = [
     { key: 'ingestion', name: 'Document Ingestion', icon: '📤' },
@@ -507,7 +463,6 @@ function createComprehensiveStageDisplay(pipelineStatus: PipelineStatus): string
       stageClass = 'processing';
       stageIcon = '🔄';
       if (stageDetail?.metadata) {
-        // Show progress details for current stage
         if (stage.key === 'processing' && stageDetail.metadata.chunkCount) {
           stageInfo = `<small>(${stageDetail.metadata.chunkCount} chunks)</small>`;
         } else if (stage.key === 'embedding' && stageDetail.metadata.embeddingCount) {
@@ -531,7 +486,6 @@ function createComprehensiveStageDisplay(pipelineStatus: PipelineStatus): string
   
   progressHtml += '</div>';
   
-  // Add overall processing time
   if (pipelineStatus.totalProcessingTime > 0) {
     progressHtml += `<div class="pipeline-summary">Total Processing Time: ${pipelineStatus.totalProcessingTime}ms</div>`;
   }
@@ -539,7 +493,6 @@ function createComprehensiveStageDisplay(pipelineStatus: PipelineStatus): string
   return progressHtml;
 }
 
-// Get comprehensive status text for all services
 function getComprehensiveStatusText(pipelineStatus: PipelineStatus): string {
   const stageNames = {
     'ingestion': 'Document Ingestion',
@@ -565,7 +518,6 @@ function getComprehensiveStatusText(pipelineStatus: PipelineStatus): string {
   }
 }
 
-// Extract error details from failed pipeline stages
 function getErrorDetailsFromPipeline(pipelineStatus: PipelineStatus): string {
   if (pipelineStatus.failedStages.length === 0) {
     return '';
@@ -591,7 +543,6 @@ function getErrorDetailsFromPipeline(pipelineStatus: PipelineStatus): string {
   return errorDetails;
 }
 
-// Update item details in the UI
 function updateItemDetails(item: Element | null, details: string): void {
   if (!item) return;
   
@@ -605,7 +556,6 @@ function updateItemDetails(item: Element | null, details: string): void {
   detailsElement.innerHTML = details;
 }
 
-// Show loading state
 function showLoadingState(message: string): void {
   const appDiv = document.getElementById('app')!;
   appDiv.innerHTML = `
@@ -621,7 +571,6 @@ function showLoadingState(message: string): void {
   `;
 }
 
-// Show error state
 function showErrorState(title: string, error: any): void {
   const errorMessage = error instanceof Error ? error.message : String(error);
   
@@ -646,5 +595,4 @@ function showErrorState(title: string, error: any): void {
   });
 }
 
-// Start the application when the page loads
 document.addEventListener('DOMContentLoaded', initializeApp); 

@@ -26,22 +26,18 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         const id = myEnver.getRevStackNames()[0];
         super(scope, id, {...props, crossRegionReferences: props.env!.region !== 'us-east-1'});
 
-        // Use the same domain setup as web hosting
         const zoneName = props.zoneName;
         const hostedZoneId = props.hostedZoneId;
         const apiSubdomain = ('up-api.' + myEnver.targetRevision.value + '.' + myEnver.owner.buildId).toLowerCase()
         this.apiDomain = `${apiSubdomain}.${zoneName}`;
 
-        // EventBridge removed - downstream services will poll S3 directly
 
-        // Create S3 bucket for document storage
         const documentBucket = new s3.Bucket(this, 'DocumentBucket', {
             versioned: false, // No versioning needed for timestamp-based keys
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             autoDeleteObjects: true,
         });
 
-        // Create S3 bucket for quarantine
         const quarantineBucket = new s3.Bucket(this, 'QuarantineBucket', {
             versioned: true,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -58,16 +54,12 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             environment: {
                 DOCUMENT_BUCKET: documentBucket.bucketName,
                 QUARANTINE_BUCKET: quarantineBucket.bucketName,
-                // Removed EVENT_BUS_NAME and EVENT_SOURCE - no EventBridge needed
             },
         });
 
-        // Grant permissions to validation handler
         documentBucket.grantReadWrite(validationHandler);
         quarantineBucket.grantReadWrite(validationHandler);
 
-        // Grant S3 permissions to processing service roles using account-level permissions
-        // This allows any role in the account with the pattern "rag-doc-processing-*" to access the buckets
         documentBucket.addToResourcePolicy(new iam.PolicyStatement({
             effect: iam.Effect.ALLOW,
             principals: [new iam.AccountPrincipal(this.account)],
@@ -114,13 +106,11 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             }
         }));
 
-        // S3 event trigger for validation (still needed for basic validation)
         documentBucket.addEventNotification(
             s3.EventType.OBJECT_CREATED,
             new s3Notifications.LambdaDestination(validationHandler)
         );
 
-        // Pre-signed URL generator Lambda
         const uploadUrlHandler = new NodejsFunction(this, 'UploadUrlHandler', {
             entry: __dirname + '/handlers/src/upload-url-handler.ts',
             runtime: lambda.Runtime.NODEJS_22_X,
@@ -135,7 +125,6 @@ export class RagDocumentIngestionStack extends cdk.Stack {
 
         documentBucket.grantPut(uploadUrlHandler);
 
-        // Document status API Lambda
         const statusHandler = new NodejsFunction(this, 'StatusHandler', {
             entry: __dirname + '/handlers/src/status-handler.ts',
             runtime: lambda.Runtime.NODEJS_22_X,
@@ -152,11 +141,9 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         documentBucket.grantRead(statusHandler);
         quarantineBucket.grantRead(statusHandler);
 
-        // HTTP API Gateway with IAM authorization
         const allowedOrigins = ['http://localhost:5173'];
         allowedOrigins.push(`https://${props.webUiDomain}`);
 
-        // Add CORS configuration to document bucket for direct uploads
         documentBucket.addCorsRule({
             allowedOrigins: allowedOrigins,
             allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.POST],
@@ -223,7 +210,6 @@ export class RagDocumentIngestionStack extends cdk.Stack {
 
         });
 
-        // API endpoints - will use default IAM authorizer
         this.httpApi.addRoutes({
             path: '/upload',
             methods: [apigatewayv2.HttpMethod.POST],
@@ -236,13 +222,11 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             integration: new apigatewayv2Integrations.HttpLambdaIntegration('StatusIntegration', statusHandler),
         });
 
-        // Output the CORS configuration for debugging (after API is created)
         new cdk.CfnOutput(this, 'CorsAllowedOrigins', {
             value: allowedOrigins.join(', '),
             description: 'CORS allowed origins for API Gateway',
         });
 
-        // Set up custom domain for API Gateway
         const hostedZone = HostedZone.fromHostedZoneAttributes(this, 'ApiHostedZone', {
             hostedZoneId: hostedZoneId,
             zoneName: zoneName,
@@ -279,7 +263,6 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             recordName: apiSubdomain,
         });
 
-        // Output values for other services to consume
         new cdk.CfnOutput(this, 'DocumentBucketName', {
             value: documentBucket.bucketName,
             exportName: `${this.stackName}-DocumentBucket`,
@@ -308,15 +291,12 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         });
 
         new cdk.CfnOutput(this, 'arnForExecuteApi', {
-            // value: `arn:aws:execute-api:${this.region}:${this.account}:${this.httpApi.httpApiId}/*/*`,
             value: this.httpApi.arnForExecuteApi(),
             exportName: `${this.stackName}-arnForExecuteApi`,
             description: 'ARN pattern for the RAG Document Ingestion HTTP API Gateway (includes $default stage)',
         });
 
-        // EventBus output removed - no longer needed
 
-        // Output the actual API Gateway ID for troubleshooting
         new cdk.CfnOutput(this, 'HttpApiId', {
             value: this.httpApi.httpApiId,
             description: 'HTTP API Gateway ID',
@@ -327,14 +307,11 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             description: 'Regional domain name for API Gateway custom domain',
         });
 
-        // OndemandEnv Producers - Share actual AWS resource values with other services
         new OdmdShareOut(
             this, new Map([
-                // S3 bucket resources for downstream services to poll
                 [myEnver.documentStorageResources.documentBucket, documentBucket.bucketName],
                 [myEnver.documentStorageResources.quarantineBucket, quarantineBucket.bucketName],
 
-                // Auth Callback URLs - dynamic URLs based on deployed domain
                 [myEnver.authCallbackUrl, `https://${props.webUiDomain}/index.html?callback`],
                 [myEnver.logoutUrl, `https://${props.webUiDomain}/index.html?logout`],
             ])

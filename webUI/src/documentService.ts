@@ -33,18 +33,14 @@ export class DocumentService {
     async initialize(credentials: string): Promise<void> {
         this.idToken = credentials;
         
-        // Initialize DocumentTracker with service endpoints
         const config = getConfig();
         
-        // Check if services configuration is available
         if (!config.services) {
             console.warn('⚠️ Services configuration not available - using fallback endpoints for development');
-            // Fallback to legacy single-service tracking
             this.documentTracker = null;
             return;
         }
         
-        // Validate downstream service endpoints are available
         if (!config.services?.processing || !config.services?.embedding || !config.services?.vectorStorage) {
             const missing = [];
             if (!config.services?.processing) missing.push('processing');
@@ -57,7 +53,7 @@ export class DocumentService {
         }
         
         const endpoints = {
-            ingestion: config.aws.apiEndpoint, // Use local ingestion service base endpoint
+            ingestion: config.aws.apiEndpoint,
             processing: config.services.processing,
             embedding: config.services.embedding,
             vectorStorage: config.services.vectorStorage
@@ -93,12 +89,11 @@ export class DocumentService {
 
         const result = await response.json();
         
-        // Handle the actual API response structure
         if (result.success && result.data) {
             return {
                 uploadUrl: result.data.uploadUrl,
                 documentId: result.data.uploadId,
-                fields: {} // The upload URL is already presigned, no additional fields needed
+                fields: {}
             };
         } else {
             throw new Error('Invalid response format from upload API');
@@ -109,20 +104,16 @@ export class DocumentService {
         try {
             progressCallback?.(10);
 
-            // Step 1: Request upload URL
             const uploadResponse = await this.requestUploadUrl(file.name, file.type, file.size);
             progressCallback?.(20);
 
-            // Step 2: Upload directly to S3 using presigned URL
             progressCallback?.(30);
 
-            // Use XMLHttpRequest for progress tracking with PUT method for presigned URL
             const uploadResult = await new Promise<Response>((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
 
                 xhr.upload.addEventListener('progress', (event) => {
                     if (event.lengthComputable) {
-                        // Progress from 30% to 90% during upload
                         const uploadProgress = 30 + (event.loaded / event.total) * 60;
                         progressCallback?.(Math.round(uploadProgress));
                     }
@@ -140,7 +131,6 @@ export class DocumentService {
                     reject(new Error('Upload failed due to network error'));
                 });
 
-                // For presigned PUT URLs, we send the file directly
                 xhr.open('PUT', uploadResponse.uploadUrl);
                 xhr.setRequestHeader('Content-Type', file.type);
                 xhr.send(file);
@@ -158,7 +148,6 @@ export class DocumentService {
         }
     }
 
-    // Legacy method - only checks ingestion service
     async getUploadStatus(documentId: string): Promise<DocumentStatus> {
         if (!this.idToken) {
             throw new Error('DocumentService not initialized with idToken');
@@ -180,7 +169,6 @@ export class DocumentService {
 
             const result = await response.json();
             
-            // Map ingestion service status to standardized format
             return this.mapIngestionStatus(result);
         } catch (error) {
             console.error('Error getting document status:', error);
@@ -188,7 +176,6 @@ export class DocumentService {
         }
     }
 
-    // New comprehensive method - tracks across all services
     async getPipelineStatus(documentId: string): Promise<PipelineStatus> {
         if (!this.documentTracker) {
             throw new Error('DocumentService not properly initialized with DocumentTracker');
@@ -202,7 +189,6 @@ export class DocumentService {
         }
     }
 
-    // Track document through entire pipeline with progress callback
     async trackDocument(documentId: string, progressCallback?: (status: any) => void): Promise<any> {
         if (!this.documentTracker) {
             throw new Error('DocumentService not properly initialized with DocumentTracker');
@@ -216,18 +202,16 @@ export class DocumentService {
         }
     }
 
-    // Map ingestion service status to standardized format
     private mapIngestionStatus(ingestionResult: any): DocumentStatus {
         const mapped: DocumentStatus = {
             documentId: ingestionResult.documentId,
-            status: 'processing', // default
+            status: 'processing',
             timestamp: ingestionResult.timestamp || new Date().toISOString(),
             stage: 'ingestion',
             message: ingestionResult.errorMessage,
             metadata: ingestionResult
         };
 
-        // Map ingestion service statuses to our standardized statuses
         switch (ingestionResult.status) {
             case 'validated':
                 mapped.status = 'validated';

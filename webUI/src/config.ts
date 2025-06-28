@@ -1,4 +1,3 @@
-// Configuration interface
 export interface Config {
     aws: {
         region: string;
@@ -26,17 +25,15 @@ export interface Config {
 }
 
 
-// Runtime configuration loaded from deployed config.json
 let runtimeConfig: Config | null = null;
 
-// Load configuration from the deployed config.json file
 export async function loadConfig(): Promise<Config> {
     if (runtimeConfig) {
         return runtimeConfig;
     }
 
     try {
-        const response = await fetch('/config.json?t=' + Date.now()); // Cache bust
+        const response = await fetch('/config.json?t=' + Date.now());
         if (response.ok) {
             runtimeConfig = await response.json();
             runtimeConfig!.redirectUri = window.location.hostname == 'localhost'
@@ -44,7 +41,7 @@ export async function loadConfig(): Promise<Config> {
                 : `https://${runtimeConfig!.deployment.webDomain}/index.html?callback`
 
             console.log('✅ Loaded runtime configuration from /config.json');
-            return runtimeConfig!; // We know it's not null here
+            return runtimeConfig!;
         } else {
             console.warn('⚠️ Failed to load /config.json, using default configuration');
             throw new Error('Failed to load /config.json');
@@ -56,7 +53,6 @@ export async function loadConfig(): Promise<Config> {
 
 }
 
-// Get current configuration (use after calling loadConfig)
 export function getConfig(): Config {
     if (!runtimeConfig) {
         throw new Error('Configuration not loaded yet. Call loadConfig() first.');

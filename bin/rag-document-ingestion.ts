@@ -27,10 +27,8 @@ async function main() {
 
     const targetEnver = RagContracts.inst.getTargetEnver() as RagDocumentIngestionEnver;
 
-    // Create web hosting stack first to get domain info
     const webHostingStack = new RagDocumentIngestionWebHostingStack(app, targetEnver, props);
 
-    // Create main stack with domain info for API Gateway custom domain and CORS
     const mainStack = new RagDocumentIngestionStack(app, targetEnver, {
         ...props,
         zoneName: webHostingStack.zoneName,
@@ -46,12 +44,10 @@ async function main() {
         mainStack: mainStack,
     });
 
-    // Deploy the webUI
     try {
         await webUiStack.buildWebUiAndDeploy();
     } catch (error) {
         console.error('Failed to deploy webUI configuration:', error);
-        // Don't throw - let the stacks deploy even if config deployment fails
     }
 
     app.synth({aspectStabilization: false});
