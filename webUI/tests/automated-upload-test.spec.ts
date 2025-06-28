@@ -33,7 +33,7 @@ test.describe('RAG Pipeline E2E Validation (Persistent Auth)', () => {
       page = await context.newPage();
 
       console.log('🔗 Navigating to RAG WebUI...');
-      await page.goto('http:
+      await page.goto('http://localhost:5173');
 
       console.log(`✅ Connected to RAG WebUI: ${page.url()}`);
 
