@@ -203,16 +203,16 @@ export const FAILED_CHROME_FLAGS = {
 
 /**
  * ❌ FAILED APPROACHES (Do not use):
- * 
+ *
  * These approaches were tested and proven NOT to work:
  */
 export const FAILED_APPROACHES = {
-  JAVASCRIPT: 'window.moveTo(x, y)
-  
-  PROJECT_OVERRIDES: 'launchOptions in project config
-  CONTEXT_OPTIONS: 'contextOptions.viewport
-  VIEWPORT_POSITIONING: 'viewport: { x, y }
-  
-  WINDOW_MANAGERS: 'wmctrl, xdotool
-  WRAPPER_SCRIPTS: 'Shell scripts with positioning
-} as const; 
+  JAVASCRIPT: 'window.moveTo(x, y)',
+
+  PROJECT_OVERRIDES: 'launchOptions in project config',
+  CONTEXT_OPTIONS: 'contextOptions.viewport',
+  VIEWPORT_POSITIONING: 'viewport: { x, y }',
+
+  WINDOW_MANAGERS: 'wmctrl, xdotool',
+  WRAPPER_SCRIPTS: 'Shell scripts with positioning',
+} as const;
