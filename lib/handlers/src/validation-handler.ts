@@ -1,5 +1,5 @@
 import { S3Event, Context } from 'aws-lambda';
-import { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand, PutObjectTaggingCommand } from '@aws-sdk/client-s3';
 import * as mime from 'mime-types';
 
 const s3Client = new S3Client({});
@@ -255,7 +255,7 @@ async function quarantineDocument(bucket: string, key: string, reason: string, r
 }
 
 /**
- * Approve a document by updating its validation metadata
+ * Approve a document by updating its validation status using S3 tags
  */
 async function approveDocument(bucket: string, key: string, requestId: string): Promise<void> {
     const startTime = Date.now();
@@ -264,32 +264,22 @@ async function approveDocument(bucket: string, key: string, requestId: string): 
     console.log(`[${requestId}] Approving document: ${key}`);
     
     try {
-        const headResponse = await s3Client.send(new HeadObjectCommand({
+        await s3Client.send(new PutObjectTaggingCommand({
             Bucket: bucket,
-            Key: key
-        }));
-
-        const currentMetadata = headResponse.Metadata || {};
-        
-        const updatedMetadata = {
-            ...currentMetadata,
-            'validation-status': 'approved',
-            'download-approved': 'true',
-            'validated-at': validatedAt,
-            'validated-by': 'auto-validation',
-            'validation-comments': 'Automatically approved after passing all validation checks'
-        };
-
-        await s3Client.send(new CopyObjectCommand({
-            Bucket: bucket,
-            CopySource: `${bucket}/${key}`,
             Key: key,
-            Metadata: updatedMetadata,
-            MetadataDirective: 'REPLACE'
+            Tagging: {
+                TagSet: [
+                    { Key: 'validation-status', Value: 'approved' },
+                    { Key: 'download-approved', Value: 'true' },
+                    { Key: 'validated-at', Value: validatedAt },
+                    { Key: 'validated-by', Value: 'auto-validation' },
+                    { Key: 'validation-comments', Value: 'Automatically approved after passing all validation checks' }
+                ]
+            }
         }));
 
         const duration = Date.now() - startTime;
-        console.log(`[${requestId}] ✅ Document approved and metadata updated in ${duration}ms`);
+        console.log(`[${requestId}] ✅ Document approved and tags updated in ${duration}ms`);
         
     } catch (error) {
         const duration = Date.now() - startTime;
@@ -299,7 +289,7 @@ async function approveDocument(bucket: string, key: string, requestId: string): 
 }
 
 /**
- * Reject a document by updating its validation metadata
+ * Reject a document by updating its validation status using S3 tags
  */
 async function rejectDocument(bucket: string, key: string, reason: string, requestId: string): Promise<void> {
     const startTime = Date.now();
@@ -308,32 +298,22 @@ async function rejectDocument(bucket: string, key: string, reason: string, reque
     console.log(`[${requestId}] Rejecting document: ${key} - ${reason}`);
     
     try {
-        const headResponse = await s3Client.send(new HeadObjectCommand({
+        await s3Client.send(new PutObjectTaggingCommand({
             Bucket: bucket,
-            Key: key
-        }));
-
-        const currentMetadata = headResponse.Metadata || {};
-        
-        const updatedMetadata = {
-            ...currentMetadata,
-            'validation-status': 'rejected',
-            'download-approved': 'false',
-            'validated-at': rejectedAt,
-            'validated-by': 'auto-validation',
-            'validation-comments': reason
-        };
-
-        await s3Client.send(new CopyObjectCommand({
-            Bucket: bucket,
-            CopySource: `${bucket}/${key}`,
             Key: key,
-            Metadata: updatedMetadata,
-            MetadataDirective: 'REPLACE'
+            Tagging: {
+                TagSet: [
+                    { Key: 'validation-status', Value: 'rejected' },
+                    { Key: 'download-approved', Value: 'false' },
+                    { Key: 'validated-at', Value: rejectedAt },
+                    { Key: 'validated-by', Value: 'auto-validation' },
+                    { Key: 'validation-comments', Value: reason }
+                ]
+            }
         }));
 
         const duration = Date.now() - startTime;
-        console.log(`[${requestId}] ✅ Document rejected and metadata updated in ${duration}ms`);
+        console.log(`[${requestId}] ✅ Document rejected and tags updated in ${duration}ms`);
         
     } catch (error) {
         const duration = Date.now() - startTime;
