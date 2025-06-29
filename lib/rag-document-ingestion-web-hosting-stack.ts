@@ -34,6 +34,9 @@ export class RagDocumentIngestionWebHostingStack extends cdk.Stack {
             enforceSSL: true,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             autoDeleteObjects: true,
+            lifecycleRules: [{
+                expiration: cdk.Duration.days(14),
+            }],
         });
 
 

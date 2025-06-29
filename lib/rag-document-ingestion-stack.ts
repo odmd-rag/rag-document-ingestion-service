@@ -36,12 +36,18 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             versioned: false, // No versioning needed for timestamp-based keys
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             autoDeleteObjects: true,
+            lifecycleRules: [{
+                expiration: cdk.Duration.days(14),
+            }],
         });
 
         const quarantineBucket = new s3.Bucket(this, 'QuarantineBucket', {
             versioned: true,
             removalPolicy: cdk.RemovalPolicy.DESTROY,
             autoDeleteObjects: true,
+            lifecycleRules: [{
+                expiration: cdk.Duration.days(14),
+            }],
         });
 
         const validationHandler = new NodejsFunction(this, 'ValidationHandler', {
