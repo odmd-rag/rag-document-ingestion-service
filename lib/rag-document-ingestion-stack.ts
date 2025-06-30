@@ -1,12 +1,12 @@
 import * as cdk from 'aws-cdk-lib';
 import {Construct} from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
-import { execSync } from 'child_process';
+import {BucketDeployment, Source} from 'aws-cdk-lib/aws-s3-deployment';
+import {execSync} from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import { DocumentMetadataSchema } from './schemas/document-metadata.schema';
+import {zodToJsonSchema} from 'zod-to-json-schema';
+import {DocumentMetadataSchema} from './schemas/document-metadata.schema';
 import * as s3Notifications from 'aws-cdk-lib/aws-s3-notifications';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -14,7 +14,7 @@ import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2Integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import {HttpJwtAuthorizer} from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import {NodejsFunction} from 'aws-cdk-lib/aws-lambda-nodejs';
-import {RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
+import {RagContracts, RagDocumentIngestionEnver} from '@odmd-rag/contracts-lib-rag';
 import {Certificate, CertificateValidation} from "aws-cdk-lib/aws-certificatemanager";
 import {ARecord, HostedZone, RecordTarget} from "aws-cdk-lib/aws-route53";
 import {ApiGatewayv2DomainProperties} from "aws-cdk-lib/aws-route53-targets";
@@ -65,7 +65,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
 
         // 4. Write the in-memory schema to a temporary file in the CDK asset staging area
         const tempSchemaDir = path.join(__dirname, '..', 'cdk.out', 'schemas');
-        fs.mkdirSync(tempSchemaDir, { recursive: true });
+        fs.mkdirSync(tempSchemaDir, {recursive: true});
         const tempSchemaPath = path.join(tempSchemaDir, schemaFileName);
         fs.writeFileSync(tempSchemaPath, JSON.stringify(jsonSchema, null, 2));
 
@@ -76,7 +76,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             destinationKeyPrefix: `schemas/${schemaName}`,
             retainOnDelete: true, // Keep old schemas for audit purposes
         });
-        
+
         // 6. Construct the final S3 URL for the contract
         const schemaS3Url = `s3://${documentBucket.bucketName}/schemas/${schemaName}/${schemaFileName}`;
 
@@ -105,6 +105,10 @@ export class RagDocumentIngestionStack extends cdk.Stack {
         documentBucket.grantReadWrite(validationHandler);
         quarantineBucket.grantReadWrite(validationHandler);
 
+        const consumingSchema = RagContracts.inst.ragDocumentProcessingBuild.envers.find(e =>
+            e.documentMetadataSchemaS3Url.producer == myEnver.documentStorageResources.documentMetadataSchemaS3Url
+        )!
+
         documentBucket.addToResourcePolicy(new iam.PolicyStatement({
             effect: iam.Effect.ALLOW,
             principals: [new iam.AccountPrincipal(this.account)],
@@ -124,7 +128,8 @@ export class RagDocumentIngestionStack extends cdk.Stack {
                         `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-DocumentProcessorHandler*`,
                         `arn:aws:iam::${this.account}:role/RagDocumentProcessingStack-AdvancedDocumentProcessor*`,
                         `arn:aws:iam::${this.account}:role/RagEmbeddingStack-EmbeddingHandler*`,
-                        `arn:aws:iam::${this.account}:role/RagVectorStorageStack-VectorStorageHandler*`
+                        `arn:aws:iam::${this.account}:role/RagVectorStorageStack-VectorStorageHandler*`,
+                        consumingSchema.buildRoleArn
                     ]
                 }
             }
