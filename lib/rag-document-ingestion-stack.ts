@@ -1,6 +1,12 @@
 import * as cdk from 'aws-cdk-lib';
 import {Construct} from 'constructs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
+import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { DocumentMetadataSchema } from './schemas/document-metadata.schema';
 import * as s3Notifications from 'aws-cdk-lib/aws-s3-notifications';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -40,6 +46,39 @@ export class RagDocumentIngestionStack extends cdk.Stack {
                 expiration: cdk.Duration.days(14),
             }],
         });
+
+        // --- ATOMIC SCHEMA GENERATION AND DEPLOYMENT ---
+        // This all happens during 'cdk deploy' or 'cdk synth'
+
+        // 1. Get the Git SHA for versioning at deployment time
+        const gitSha = execSync('git rev-parse HEAD').toString().trim();
+
+        // 2. Define schema details
+        const schemaName = 'document-metadata';
+        const schemaFileName = `${schemaName}-${gitSha}.json`;
+
+        // 3. Generate JSON schema from Zod schema in memory
+        const jsonSchema = zodToJsonSchema(DocumentMetadataSchema, {
+            name: 'DocumentMetadata',
+            $refStrategy: 'none',
+        });
+
+        // 4. Write the in-memory schema to a temporary file in the CDK asset staging area
+        const tempSchemaDir = path.join(__dirname, '..', 'cdk.out', 'schemas');
+        fs.mkdirSync(tempSchemaDir, { recursive: true });
+        const tempSchemaPath = path.join(tempSchemaDir, schemaFileName);
+        fs.writeFileSync(tempSchemaPath, JSON.stringify(jsonSchema, null, 2));
+
+        // 5. Deploy the just-generated schema file from the temp asset directory to S3
+        new BucketDeployment(this, 'DocumentMetadataSchemaDeployment', {
+            sources: [Source.asset(tempSchemaDir)],
+            destinationBucket: documentBucket,
+            destinationKeyPrefix: `schemas/${schemaName}`,
+            retainOnDelete: true, // Keep old schemas for audit purposes
+        });
+        
+        // 6. Construct the final S3 URL for the contract
+        const schemaS3Url = `s3://${documentBucket.bucketName}/schemas/${schemaName}/${schemaFileName}`;
 
         const quarantineBucket = new s3.Bucket(this, 'QuarantineBucket', {
             versioned: true,
@@ -320,6 +359,7 @@ export class RagDocumentIngestionStack extends cdk.Stack {
             this, new Map([
                 [myEnver.documentStorageResources.documentBucket, documentBucket.bucketName],
                 [myEnver.documentStorageResources.quarantineBucket, quarantineBucket.bucketName],
+                [myEnver.documentStorageResources.documentMetadataSchemaS3Url, schemaS3Url],
 
                 [myEnver.authCallbackUrl, `https://${props.webUiDomain}/index.html?callback`],
                 [myEnver.logoutUrl, `https://${props.webUiDomain}/index.html?logout`],
